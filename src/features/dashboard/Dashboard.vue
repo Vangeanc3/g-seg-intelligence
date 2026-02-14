@@ -1,80 +1,87 @@
 <template>
   <div class="dashboard">
-    <h1>Dashboard - Belém/PA</h1>
-    <p>Sistema funcionando! 🎉</p>
-
-    <div class="stats-grid">
-      <div class="stat-card">
-        <i class="mdi mdi-alert-circle"></i>
-        <div>
-          <h3>1,247</h3>
-          <p>Total de Crimes</p>
-        </div>
+    <!-- Cabeçalho com filtro -->
+    <div class="dashboard-header">
+      <div>
+        <h1>Dashboard - Belém/PA</h1>
+        <p class="subtitle">Visão geral da criminalidade</p>
       </div>
-
-      <div class="stat-card">
-        <i class="mdi mdi-check-circle"></i>
-        <div>
-          <h3>623</h3>
-          <p>Casos Solucionados</p>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <i class="mdi mdi-clock"></i>
-        <div>
-          <h3>412</h3>
-          <p>Em Investigação</p>
-        </div>
-      </div>
+      <DateFilter v-model="dateFilter" @update:model-value="updateDateFilter" />
     </div>
+
+    <!-- Cards de Estatísticas -->
+    <StatsCards :stats="stats" />
+
+    <!-- Gráficos -->
+    <div class="charts-grid">
+      <CrimeChart :data="crimesByDate" />
+      <CrimeTypeChart :data="crimesByType" />
+    </div>
+
+    <!-- Tabela de Últimas Ocorrências -->
+    <RecentCrimes :crimes="recentCrimes" />
+
+    <!-- Loading -->
+    <LoadingSpinner v-if="loading" fullscreen text="Carregando dados..." />
   </div>
 </template>
+
+<script setup lang="ts">
+import StatsCards from './components/StatsCards.vue'
+import CrimeChart from './components/CrimeChart.vue'
+import CrimeTypeChart from './components/CrimeTypeChart.vue'
+import RecentCrimes from './components/RecentCrimes.vue'
+import DateFilter from './components/DateFilter.vue'
+import LoadingSpinner from '@/shared/components/LoadingSpinner.vue'
+import { useDashboard } from './composables/useDashboard'
+
+const {
+  loading,
+  dateFilter,
+  stats,
+  crimesByDate,
+  crimesByType,
+  recentCrimes,
+  updateDateFilter
+} = useDashboard()
+</script>
 
 <style scoped>
 .dashboard {
   color: white;
 }
 
-.dashboard h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.dashboard p {
-  color: #94a3b8;
-  margin-bottom: 2rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-}
-
-.stat-card {
-  background: #1e293b;
-  padding: 1.5rem;
-  border-radius: 8px;
-  border: 1px solid #334155;
+.dashboard-header {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.stat-card i {
-  font-size: 2.5rem;
-  color: #3b82f6;
-}
-
-.stat-card h3 {
-  font-size: 1.875rem;
-  margin-bottom: 0.25rem;
-}
-
-.stat-card p {
-  color: #94a3b8;
-  font-size: 0.875rem;
+.dashboard-header h1 {
   margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0.5rem 0 0;
+  color: #94a3b8;
+  font-size: 1rem;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
