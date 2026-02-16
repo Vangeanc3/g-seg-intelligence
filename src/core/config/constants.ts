@@ -13,6 +13,7 @@ export const MAPA_CONFIG = {
   ZOOM_MIN: 10,
   ZOOM_MAX: 18,
   RAIO_BUSCA_METROS: 5000,
+  MAPBOX_STYLE: 'mapbox://styles/mapbox/dark-v11',
 } as const
 
 export const CRIMES_CONFIG = {
