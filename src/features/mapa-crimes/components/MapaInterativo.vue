@@ -22,6 +22,7 @@ const emit = defineEmits<{
 
 const mapContainer = ref<HTMLDivElement>()
 let map: mapboxgl.Map | null = null
+let searchMarker: mapboxgl.Marker | null = null
 
 function initMap() {
   if (!mapContainer.value) return
@@ -32,12 +33,12 @@ function initMap() {
     container: mapContainer.value,
     style: 'mapbox://styles/mapbox/dark-v11',
     center: [-48.4902, -1.4558],
-    zoom: 11,
-    minZoom: 9,
+    zoom: 13,
+    minZoom: 10,
     maxZoom: 18,
     maxBounds: [
-      [-55.25, -5.00],  // Sudoeste (cobre toda RMB + margem)
-      [-47.60, -1.00],  // Nordeste (cobre Santa Isabel, Castanhal, Barcarena)
+      [-48.65, -1.55],  // Sudoeste (cobre Belém + margem)
+      [-48.30, -1.10],  // Nordeste (cobre ilhas de Belém)
     ],
   })
 
@@ -56,12 +57,12 @@ async function addBelemBoundary() {
   if (!map) return
 
   try {
-    const response = await fetch('/data/rmb_boundary.geojson')
-    const rmbData: GeoJSON.FeatureCollection = await response.json()
-    const mask = createMask(rmbData)
+    const response = await fetch('/data/belem_boundary.geojson')
+    const belemData: GeoJSON.FeatureCollection = await response.json()
+    const mask = createMask(belemData)
 
-    // Source e Layer: Máscara (escurece fora da RMB)
-    map.addSource('rmb-mask', {
+    // Source e Layer: Máscara (escurece fora de Belém)
+    map.addSource('belem-mask', {
       type: 'geojson',
       data: mask
     })
@@ -69,23 +70,23 @@ async function addBelemBoundary() {
     map.addLayer({
       id: 'mask-layer',
       type: 'fill',
-      source: 'rmb-mask',
+      source: 'belem-mask',
       paint: {
         'fill-color': '#0f172a',
         'fill-opacity': 0.7,
       },
     })
 
-    // Source e Layer: Contorno da RMB (borda azul)
-    map.addSource('rmb-boundary', {
+    // Source e Layer: Contorno de Belém (borda azul)
+    map.addSource('belem-boundary', {
       type: 'geojson',
-      data: rmbData
+      data: belemData
     })
 
     map.addLayer({
-      id: 'rmb-border',
+      id: 'belem-border',
       type: 'line',
-      source: 'rmb-boundary',
+      source: 'belem-boundary',
       paint: {
         'line-color': '#3b82f6',
         'line-width': 2,
@@ -93,7 +94,7 @@ async function addBelemBoundary() {
       },
     })
   } catch (error) {
-    console.error('Erro ao carregar boundary da RMB:', error)
+    console.error('Erro ao carregar boundary de Belém:', error)
   }
 }
 
@@ -267,6 +268,36 @@ function atualizarVisualizacao(modo: string) {
   map.setLayoutProperty('crime-cluster-count', 'visibility', modo === 'clusters' ? 'visible' : 'none')
   map.setLayoutProperty('crime-heat', 'visibility', heat ? 'visible' : 'none')
 }
+
+function irParaCoordenada(coords: { lng: number; lat: number; zoom: number }) {
+  if (!map) return
+
+  // Voar até o ponto
+  map.flyTo({
+    center: [coords.lng, coords.lat],
+    zoom: coords.zoom,
+    duration: 1500,
+  })
+
+  // Remover marker anterior
+  if (searchMarker) {
+    searchMarker.remove()
+  }
+
+  // Criar novo marker
+  searchMarker = new mapboxgl.Marker({ color: '#3b82f6' })
+    .setLngLat([coords.lng, coords.lat])
+    .addTo(map)
+
+  // Remover marker após 10s
+  setTimeout(() => {
+    searchMarker?.remove()
+    searchMarker = null
+  }, 10000)
+}
+
+// Expor método para componente pai
+defineExpose({ irParaCoordenada })
 
 // Watchers
 watch(() => props.geojson, (newData) => {

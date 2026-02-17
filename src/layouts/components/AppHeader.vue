@@ -15,39 +15,7 @@
     <!-- Direita: notificações + perfil -->
     <div class="header-right">
       <!-- Notificações -->
-      <div class="notification-wrapper">
-        <button class="icon-button" @click="toggleNotifications">
-          <i class="mdi mdi-bell"></i>
-          <span v-if="unreadCount > 0" class="notification-badge">
-            {{ unreadCount }}
-          </span>
-        </button>
-
-        <!-- Dropdown notificações -->
-        <transition name="dropdown">
-          <div v-if="showNotifications" class="notifications-dropdown">
-            <div class="dropdown-header">
-              <h3>Notificações</h3>
-              <button @click="markAllAsRead">Marcar todas como lidas</button>
-            </div>
-
-            <div class="notifications-list">
-              <div
-                v-for="notif in notifications"
-                :key="notif.id"
-                class="notification-item"
-                :class="{ unread: !notif.read }"
-              >
-                <i :class="notif.icon" class="notif-icon"></i>
-                <div class="notif-content">
-                  <p class="notif-title">{{ notif.title }}</p>
-                  <p class="notif-time">{{ notif.time }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </transition>
-      </div>
+      <NotificacoesDropdown />
 
       <!-- Menu do usuário -->
       <div class="user-menu-wrapper">
@@ -74,18 +42,18 @@
 
             <div class="menu-divider"></div>
 
-            <router-link to="/perfil" class="dropdown-item">
+            <router-link to="/app/perfil" class="dropdown-item">
               <i class="mdi mdi-account"></i>
               Meu Perfil
             </router-link>
-            <router-link to="/configuracoes" class="dropdown-item">
+            <router-link to="/app/configuracoes" class="dropdown-item">
               <i class="mdi mdi-cog"></i>
               Configurações
             </router-link>
 
             <div class="menu-divider"></div>
 
-            <button class="dropdown-item" @click="handleLogout">
+            <button class="dropdown-item logout-item" @click="mostrarLogout = true">
               <i class="mdi mdi-logout"></i>
               Sair
             </button>
@@ -94,12 +62,21 @@
       </div>
     </div>
   </header>
+
+  <LogoutModal
+    :visivel="mostrarLogout"
+    @cancelar="mostrarLogout = false"
+    @confirmar="confirmarLogout"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authService } from '@/core/auth/authService'
+import { useToast } from '@/shared/composables/useToast'
+import LogoutModal from '@/shared/components/LogoutModal.vue'
+import NotificacoesDropdown from '@/shared/components/NotificacoesDropdown.vue'
 
 defineEmits<{
   (e: 'toggle-sidebar'): void
@@ -108,64 +85,31 @@ defineEmits<{
 const route = useRoute()
 const router = useRouter()
 
-const showNotifications = ref(false)
 const showUserMenu = ref(false)
+const mostrarLogout = ref(false)
+
+const toast = useToast()
 
 // Usuário (depois virá do authService)
 const userName = 'João Silva'
 const userEmail = 'joao@gseg.com.br'
 const userAvatar = 'https://ui-avatars.com/api/?name=Joao+Silva&background=3b82f6&color=fff'
 
-// Notificações (mock - depois virá de API)
-const notifications = ref([
-  {
-    id: 1,
-    title: 'Nova ocorrência no Umarizal',
-    time: 'Há 5 minutos',
-    icon: 'mdi mdi-alert-circle',
-    read: false
-  },
-  {
-    id: 2,
-    title: 'Relatório mensal disponível',
-    time: 'Há 1 hora',
-    icon: 'mdi mdi-file-document',
-    read: false
-  },
-  {
-    id: 3,
-    title: 'Atualização do sistema',
-    time: 'Há 3 horas',
-    icon: 'mdi mdi-update',
-    read: true
-  }
-])
-
-const unreadCount = computed(() => {
-  return notifications.value.filter(n => !n.read).length
-})
-
 const currentPageTitle = computed(() => {
   return (route.meta.title as string) || 'Dashboard'
 })
 
-function toggleNotifications() {
-  showNotifications.value = !showNotifications.value
-  showUserMenu.value = false
-}
-
 function toggleUserMenu() {
   showUserMenu.value = !showUserMenu.value
-  showNotifications.value = false
 }
 
-function markAllAsRead() {
-  notifications.value.forEach(n => n.read = true)
-}
-
-function handleLogout() {
+function confirmarLogout() {
   authService.logout()
-  router.push('/auth/login')
+  localStorage.removeItem('g-seg-perfil')
+  mostrarLogout.value = false
+  showUserMenu.value = false
+  toast.info('Você saiu da plataforma.')
+  router.push('/')
 }
 </script>
 
@@ -209,38 +153,6 @@ function handleLogout() {
   gap: 1rem;
 }
 
-.icon-button {
-  position: relative;
-  background: transparent;
-  border: none;
-  color: #94a3b8;
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-
-.icon-button:hover {
-  background: rgba(59, 130, 246, 0.1);
-  color: #60a5fa;
-}
-
-.notification-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: #ef4444;
-  color: white;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 10px;
-  min-width: 18px;
-  text-align: center;
-}
-
-.notification-wrapper,
 .user-menu-wrapper {
   position: relative;
 }
@@ -281,7 +193,6 @@ function handleLogout() {
 }
 
 /* Dropdowns */
-.notifications-dropdown,
 .user-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -292,73 +203,6 @@ function handleLogout() {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
   min-width: 320px;
   z-index: 1000;
-}
-
-.dropdown-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
-  border-bottom: 1px solid #334155;
-}
-
-.dropdown-header h3 {
-  margin: 0;
-  color: #e2e8f0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.dropdown-header button {
-  background: transparent;
-  border: none;
-  color: #3b82f6;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.notifications-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.notification-item {
-  display: flex;
-  gap: 0.75rem;
-  padding: 1rem;
-  border-bottom: 1px solid #334155;
-  transition: background 0.2s;
-  cursor: pointer;
-}
-
-.notification-item:hover {
-  background: rgba(59, 130, 246, 0.05);
-}
-
-.notification-item.unread {
-  background: rgba(59, 130, 246, 0.08);
-}
-
-.notif-icon {
-  font-size: 1.5rem;
-  color: #60a5fa;
-  flex-shrink: 0;
-}
-
-.notif-content {
-  flex: 1;
-}
-
-.notif-title {
-  margin: 0;
-  color: #e2e8f0;
-  font-size: 0.875rem;
-}
-
-.notif-time {
-  margin: 0.25rem 0 0;
-  color: #64748b;
-  font-size: 0.75rem;
 }
 
 .user-info {
@@ -431,13 +275,44 @@ function handleLogout() {
 }
 
 /* Mobile */
+.logout-item {
+  color: #ef4444 !important;
+}
+
+.logout-item:hover {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+}
+
 @media (max-width: 768px) {
+  .app-header {
+    padding: 0 1rem;
+  }
+
   .menu-toggle-mobile {
     display: block;
   }
 
   .user-name {
     display: none;
+  }
+
+  .page-title h1 {
+    font-size: 1rem;
+  }
+
+  .user-dropdown {
+    min-width: 280px;
+    right: -0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-dropdown {
+    position: fixed;
+    left: 0.5rem;
+    right: 0.5rem;
+    min-width: auto;
   }
 }
 </style>

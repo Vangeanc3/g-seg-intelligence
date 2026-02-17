@@ -1,8 +1,8 @@
 /**
  * Cria uma máscara que escurece tudo FORA da área fornecida.
  *
- * Técnica: Polígono do mundo todo com "buracos" na forma da RMB.
- * Quando preenchido com cor escura, só a Região Metropolitana fica visível (8 municípios).
+ * Técnica: Polígono do mundo todo com "buracos" na forma de Belém.
+ * Quando preenchido com cor escura, só Belém fica visível (incluindo ilhas).
  */
 export function createMask(boundaryGeojson: GeoJSON.FeatureCollection): GeoJSON.Feature {
   // Polígono que cobre o mundo inteiro

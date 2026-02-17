@@ -7,7 +7,9 @@
         </div>
         <div class="stat-content">
           <p class="stat-label">{{ stat.label }}</p>
-          <h3 class="stat-value">{{ stat.value }}</h3>
+          <h3 class="stat-value">
+            <AnimatedNumber :valor="stat.rawValue" />{{ stat.suffix }}
+          </h3>
           <div class="stat-change" :class="stat.changeType">
             <i :class="stat.changeIcon"></i>
             <span>{{ stat.change }}</span>
@@ -21,6 +23,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import BaseCard from '@/shared/components/BaseCard.vue'
+import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 import type { DashboardStats } from '../types/dashboard'
 
 interface Props {
@@ -33,7 +36,8 @@ const statsData = computed(() => [
   {
     id: '1',
     label: 'Total de Crimes',
-    value: props.stats.totalCrimes.toLocaleString(),
+    rawValue: props.stats.totalCrimes,
+    suffix: '',
     change: `${props.stats.changePercent.totalCrimes > 0 ? '+' : ''}${props.stats.changePercent.totalCrimes}% vs mês anterior`,
     changeType: props.stats.changePercent.totalCrimes > 0 ? 'negative' : 'positive',
     changeIcon: props.stats.changePercent.totalCrimes > 0 ? 'mdi mdi-arrow-up' : 'mdi mdi-arrow-down',
@@ -43,7 +47,8 @@ const statsData = computed(() => [
   {
     id: '2',
     label: 'Casos Solucionados',
-    value: props.stats.solvedCases.toLocaleString(),
+    rawValue: props.stats.solvedCases,
+    suffix: '',
     change: `+${props.stats.changePercent.solvedCases}% vs mês anterior`,
     changeType: 'positive',
     changeIcon: 'mdi mdi-arrow-up',
@@ -53,7 +58,8 @@ const statsData = computed(() => [
   {
     id: '3',
     label: 'Em Investigação',
-    value: props.stats.investigating.toLocaleString(),
+    rawValue: props.stats.investigating,
+    suffix: '',
     change: props.stats.changePercent.investigating === 0 ? 'Sem alteração' : `${props.stats.changePercent.investigating}%`,
     changeType: 'neutral',
     changeIcon: 'mdi mdi-minus',
@@ -63,7 +69,8 @@ const statsData = computed(() => [
   {
     id: '4',
     label: 'Taxa de Resolução',
-    value: `${props.stats.resolutionRate}%`,
+    rawValue: props.stats.resolutionRate,
+    suffix: '%',
     change: `+${props.stats.changePercent.resolutionRate}% vs mês anterior`,
     changeType: 'positive',
     changeIcon: 'mdi mdi-arrow-up',
@@ -136,5 +143,18 @@ const statsData = computed(() => [
 
 .stat-change.neutral {
   color: #94a3b8;
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

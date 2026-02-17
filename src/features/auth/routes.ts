@@ -17,4 +17,12 @@ export const authRoutes: RouteRecordRaw[] = [
       title: 'Criar Conta',
     },
   },
+  {
+    path: 'esqueci-senha',
+    name: 'esqueci-senha',
+    component: () => import('./EsqueciSenhaPage.vue'),
+    meta: {
+      title: 'Recuperar Senha',
+    },
+  },
 ]

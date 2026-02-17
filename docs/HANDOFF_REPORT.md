@@ -291,16 +291,16 @@ isStrongPassword(password: string): boolean
   - ✅ Token Mapbox configurado (.env)
   - ✅ TypeScript type-check passando sem erros
 
-- [x] **Máscara Geográfica da RMB implementada** (2026-02-14)
-  - ✅ Script download-rmb.cjs (baixa contornos de 8 municípios do IBGE)
-  - ✅ Arquivo rmb_boundary.geojson com contornos oficiais da RMB
-  - ✅ Utilitário maskHelper.ts atualizado (suporta múltiplos polígonos)
-  - ✅ MapaInterativo.vue integrado com máscara da RMB
-  - ✅ Máscara escurece áreas fora da Região Metropolitana (70% opacidade)
-  - ✅ Contorno azul delimita os 8 municípios da RMB
-  - ✅ Municípios incluídos: Belém, Ananindeua, Marituba, Benevides, Santa Bárbara do Pará, Santa Isabel do Pará, Castanhal e Barcarena
-  - ✅ Visual profissional para apresentação B2B
-  - ✅ Relatório completo em docs/RELATORIO_IMPLEMENTACAO_RMB.md
+- [x] **Máscara Geográfica de Belém implementada** (2026-02-16)
+  - ✅ Arquivo belem_boundary.geojson baixado do IBGE (código 1501402)
+  - ✅ Utilitário maskHelper.ts (suporta múltiplos polígonos - Polygon/MultiPolygon)
+  - ✅ MapaInterativo.vue integrado com máscara de Belém
+  - ✅ Máscara escurece áreas fora de Belém (70% opacidade)
+  - ✅ Contorno azul delimita o município de Belém (incluindo ilhas)
+  - ✅ Zoom e bounds ajustados para focar apenas em Belém
+  - ✅ Arquivo pesado de malha viária removido (68MB)
+  - ✅ Arquivos da RMB salvos em backup (public/data/backup-rmb/) para uso futuro
+  - ✅ Visual profissional focado no município de Belém
 
 ## Tarefas Pendentes (Para Próxima IA/Dev)
 
@@ -331,6 +331,13 @@ isStrongPassword(password: string): boolean
   - Integrar com composable `useNotification`
 
 ### Média Prioridade
+
+- [ ] **Expandir mapa para Região Metropolitana de Belém (RMB)**
+  - Arquivos da RMB já estão salvos em `public/data/backup-rmb/`
+  - Incluir os 8 municípios: Belém, Ananindeua, Marituba, Benevides, Santa Bárbara do Pará, Santa Isabel do Pará, Castanhal, Barcarena
+  - Mover `rmb_boundary.geojson` de volta para `public/data/`
+  - Atualizar `MapaInterativo.vue` (fetch, bounds, zoom)
+  - Justificativa: Crimes em municípios vizinhos afetam análise de segurança regional
 
 - [ ] **Melhorias no Mapa de Crimes**
   - Adicionar filtro de data (DatePicker)
@@ -497,43 +504,48 @@ import { isValidEmail } from '@/shared/utils/validators'
 
 18. **Filtros reativos** - Computed properties atualizam mapa em tempo real
 
-### Máscara da Região Metropolitana de Belém (RMB)
+### Máscara Geográfica de Belém
 
-19. **Contornos oficiais do IBGE** - 8 municípios da RMB baixados via API do IBGE
+19. **Contorno oficial do IBGE** - Município de Belém (código 1501402) baixado via API do IBGE
 
-20. **Script download-rmb.cjs** - Script automatizado para baixar/atualizar contornos
-    - Localização: `scripts/download-rmb.cjs`
-    - Execução: `node scripts/download-rmb.cjs`
-    - Municípios: Belém, Ananindeua, Marituba, Benevides, Santa Bárbara do Pará, Santa Isabel do Pará, Castanhal, Barcarena
+20. **Arquivo belem_boundary.geojson** - Contorno oficial de Belém (~6KB)
+    - Localização: `public/data/belem_boundary.geojson`
+    - Formato: FeatureCollection com 1 feature (Polygon)
+    - Inclui área continental e ilhas de Belém
+    - Download: `curl -o public/data/belem_boundary.geojson "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/1501402?formato=application/vnd.geo+json"`
 
-21. **Arquivo rmb_boundary.geojson** - Contornos unificados da RMB (~47KB)
-    - Localização: `public/data/rmb_boundary.geojson`
-    - Formato: FeatureCollection com 8 features (Polygon/MultiPolygon)
-
-22. **Máscara visual** - Polígono mundial com "buracos" nos municípios da RMB
-    - Técnica: worldBounds com holes nas coordenadas dos municípios
+21. **Máscara visual** - Polígono mundial com "buraco" no município de Belém
+    - Técnica: worldBounds com holes nas coordenadas de Belém
     - Cor: `#0f172a` (mesmo tom do background)
     - Opacidade: 70% (efeito de "área apagada")
 
-23. **Contorno azul** - Linha delimitando cada município da RMB
+22. **Contorno azul** - Linha delimitando o município de Belém
     - Cor: `#3b82f6` (accent color do sistema)
     - Largura: 2px
     - Opacidade: 80%
 
-24. **maskHelper.ts** - Utilitário que cria máscara a partir de múltiplos polígonos
-    - Suporta Polygon e MultiPolygon (ilhas)
+23. **maskHelper.ts** - Utilitário que cria máscara a partir de polígonos
+    - Suporta Polygon e MultiPolygon (importante para ilhas)
     - Processa todas as features do FeatureCollection
+    - Reutilizável para qualquer boundary GeoJSON
 
-25. **Ordem das layers** - Importante para renderização correta:
+24. **Ordem das layers** - Importante para renderização correta:
     1. Mapbox base (dark-v11)
-    2. Máscara (escurece área externa)
-    3. Contorno azul (delimita RMB)
+    2. Máscara (escurece área fora de Belém)
+    3. Contorno azul (delimita Belém)
     4. Crimes (pontos/heatmap/clusters)
 
-26. **Arquivos obsoletos** - Podem ser removidos:
-    - `public/data/belem_boundary.geojson` (apenas Belém, não RMB)
-    - `public/data/belem_boundary_from_roads.geojson` (bounding box genérico)
-    - `scripts/extract-boundary.cjs` (gerava contorno de ruas)
+25. **Configuração do mapa para Belém:**
+    - Centro: `[-48.4902, -1.4558]` (centro de Belém)
+    - Zoom inicial: 13 (focado na cidade)
+    - MinZoom: 10
+    - MaxBounds: `[[-48.65, -1.55], [-48.30, -1.10]]` (cobre Belém + ilhas)
+
+26. **Backup da RMB** - Arquivos salvos para expansão futura:
+    - Localização: `public/data/backup-rmb/`
+    - `rmb_boundary.geojson` (171KB, 8 municípios da Região Metropolitana)
+    - `download-rmb.cjs` (script para baixar RMB do IBGE)
+    - Para usar RMB: mover arquivos de volta e atualizar MapaInterativo.vue
 
 ---
 
@@ -541,14 +553,14 @@ import { isValidEmail } from '@/shared/utils/validators'
 
 - **Branch:** main
 - **Último commit:** a6084be (create initial structure)
-- **Última atualização:** 2026-02-14 (Máscara da RMB implementada)
+- **Última atualização:** 2026-02-16 (Máscara de Belém implementada, RMB em backup)
 - **Dependências principais:** Vue 3, TypeScript, Vue Router, Pinia, Chart.js, Mapbox GL JS
 - **URLs locais:**
   - Dashboard: http://localhost:5173/dashboard
-  - Mapa de Crimes (com RMB): http://localhost:5173/mapa
+  - Mapa de Crimes: http://localhost:5173/mapa
 - **Relatórios:**
   - Handoff Report: docs/HANDOFF_REPORT.md
-  - Implementação RMB: docs/RELATORIO_IMPLEMENTACAO_RMB.md
+  - Implementação RMB: docs/RELATORIO_IMPLEMENTACAO_RMB.md (histórico)
 
 ## Como Testar o Dashboard
 
@@ -567,6 +579,8 @@ import { isValidEmail } from '@/shared/utils/validators'
 2. Acesse: `http://localhost:5173/mapa`
 3. Você verá:
    - **Mapa interativo de Belém/PA** com dark theme do Mapbox
+   - **Máscara destacando apenas Belém** (áreas externas escurecidas)
+   - **Contorno azul** delimitando o município de Belém (incluindo ilhas)
    - **500 pontos de crimes** distribuídos nos bairros
    - **Painel de filtros lateral** (esquerda):
      - Seletor de visualização (Pontos/Calor/Clusters)

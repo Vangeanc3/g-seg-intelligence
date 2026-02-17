@@ -1,5 +1,5 @@
 <template>
-  <aside class="app-sidebar" :class="{ collapsed }">
+  <aside class="app-sidebar" :class="{ collapsed, 'mobile-open': mobileOpen }">
     <!-- Logo e título -->
     <div class="sidebar-header">
       <div class="logo">
@@ -21,6 +21,7 @@
         :to="item.path"
         class="nav-item"
         :class="{ active: isActive(item.path) }"
+        :data-tooltip="item.label"
       >
         <i :class="item.icon" class="nav-icon"></i>
         <transition name="fade">
@@ -31,7 +32,7 @@
 
     <!-- Botão recolher -->
     <div class="sidebar-footer">
-      <button class="nav-item" @click="$emit('toggle')">
+      <button class="nav-item" @click="$emit('toggle')" :data-tooltip="collapsed ? 'Expandir' : ''">
         <i :class="collapsed ? 'mdi mdi-menu-open' : 'mdi mdi-menu'" class="nav-icon"></i>
         <transition name="fade">
           <span v-if="!collapsed" class="nav-text">Recolher</span>
@@ -46,6 +47,7 @@ import { useRoute } from 'vue-router'
 
 interface Props {
   collapsed: boolean
+  mobileOpen?: boolean
 }
 
 defineProps<Props>()
@@ -55,17 +57,12 @@ defineEmits<{
 
 const route = useRoute()
 
-// Itens do menu baseado na imagem
+// Itens do menu
 const menuItems = [
-  { path: '/dashboard', label: 'Home', icon: 'mdi mdi-home' },
-  { path: '/analytics', label: 'Analytics', icon: 'mdi mdi-chart-line' },
-  { path: '/mapa', label: 'Mapeamento Criminal', icon: 'mdi mdi-map-marker' },
-  { path: '/mapa-tipo', label: 'Mapeamento a Tipo', icon: 'mdi mdi-filter-variant' },
-  { path: '/mapa-risco', label: 'Mapeamento a Risco', icon: 'mdi mdi-shield-alert' },
-  { path: '/potenciacao', label: 'Potenciação', icon: 'mdi mdi-trending-up' },
-  { path: '/monitores', label: 'Monitores', icon: 'mdi mdi-monitor-dashboard' },
-  { path: '/relatorios', label: 'Unidocs', icon: 'mdi mdi-file-document' },
-  { path: '/seguimento', label: 'Seguimento', icon: 'mdi mdi-target' }
+  { path: '/app/dashboard', label: 'Dashboard', icon: 'mdi mdi-view-dashboard' },
+  { path: '/app/mapa', label: 'Mapa de Crimes', icon: 'mdi mdi-map-marker' },
+  { path: '/app/analytics', label: 'Analytics', icon: 'mdi mdi-chart-line' },
+  { path: '/app/relatorios', label: 'Relatórios', icon: 'mdi mdi-file-document' },
 ]
 
 function isActive(path: string) {
@@ -185,5 +182,54 @@ function isActive(path: string) {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* Tooltip — só quando sidebar colapsada */
+.app-sidebar.collapsed .nav-item {
+  position: relative;
+}
+
+.app-sidebar.collapsed .nav-item::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  padding: 0.375rem 0.75rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.app-sidebar.collapsed .nav-item:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+@media (max-width: 768px) {
+  .app-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease, width 0.3s ease;
+    box-shadow: none;
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+    width: 250px !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .app-sidebar.collapsed {
+    transform: translateX(-100%);
+  }
 }
 </style>

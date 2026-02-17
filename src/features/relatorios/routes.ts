@@ -4,7 +4,7 @@ export const relatoriosRoutes: RouteRecordRaw[] = [
   {
     path: 'relatorios',
     name: 'relatorios',
-    component: () => import('./Relatorios.vue'),
+    component: () => import('./RelatoriosPage.vue'),
     meta: {
       title: 'Relatórios',
       requiresAuth: true,

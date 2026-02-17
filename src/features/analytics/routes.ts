@@ -4,7 +4,7 @@ export const analyticsRoutes: RouteRecordRaw[] = [
   {
     path: 'analytics',
     name: 'analytics',
-    component: () => import('./Analytics.vue'),
+    component: () => import('./AnalyticsPage.vue'),
     meta: {
       title: 'Analytics',
       requiresAuth: true,

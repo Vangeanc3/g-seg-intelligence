@@ -14,24 +14,36 @@ import { authRoutes } from '@/features/auth/routes'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // (MainLayout)
+    // Landing Page (pública)
     {
       path: '/',
+      name: 'landing',
+      component: () => import('@/features/landing/LandingPage.vue'),
+      meta: { layout: 'none' },
+    },
+
+    // (MainLayout - rotas autenticadas)
+    {
+      path: '/app',
       component: MainLayout,
       meta: { requiresAuth: true },
       children: [
         {
           path: '',
-          redirect: '/dashboard',
+          redirect: '/app/dashboard',
         },
         ...dashboardRoutes,
         ...mapaCrimesRoutes,
         ...analyticsRoutes,
         ...relatoriosRoutes,
+        {
+          path: 'perfil',
+          component: () => import('@/features/perfil/PerfilPage.vue'),
+        },
       ],
     },
 
-    // (AUthLayout)
+    // (AuthLayout)
     {
       path: '/auth',
       component: AuthLayout,
@@ -40,10 +52,11 @@ const router = createRouter({
       ],
     },
 
-    // 404 - Redireciona para dashboard
+    // 404 - Página não encontrada
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/dashboard',
+      component: () => import('@/features/landing/NotFoundPage.vue'),
+      meta: { layout: 'none' },
     },
   ],
 })
@@ -56,7 +69,7 @@ router.beforeEach((to, from, next) => {
   if (requiresAuth && !isAuthenticated) {
     next('/auth/login')
   } else if (to.path.startsWith('/auth') && isAuthenticated) {
-    next('/dashboard')
+    next('/app/dashboard')
   } else {
     next()
   }

@@ -8,7 +8,8 @@
       "Bash(node scripts/extract-boundary.js:*)",
       "Bash(node scripts/extract-boundary.cjs:*)",
       "Bash(node scripts/download-rmb.cjs:*)",
-      "Bash(node scripts/download-belem.cjs:*)"
+      "Bash(node scripts/download-belem.cjs:*)",
+      "Bash(node -e:*)"
     ]
   }
 }
