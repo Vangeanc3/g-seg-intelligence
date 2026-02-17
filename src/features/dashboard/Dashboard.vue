@@ -32,6 +32,10 @@
     <!-- Tabela de Últimas Ocorrências -->
     <SkeletonLoader v-if="carregando" tipo="tabela" :linhas="5" />
     <RecentCrimes v-else :crimes="recentCrimes" />
+
+    <!-- Comparativo Temporal -->
+    <SkeletonLoader v-if="carregando" tipo="tabela" :linhas="6" />
+    <ComparativoTemporal v-else />
   </div>
 </template>
 
@@ -40,6 +44,7 @@ import StatsCards from './components/StatsCards.vue'
 import CrimeChart from './components/CrimeChart.vue'
 import CrimeTypeChart from './components/CrimeTypeChart.vue'
 import RecentCrimes from './components/RecentCrimes.vue'
+import ComparativoTemporal from './components/ComparativoTemporal.vue'
 import DateFilter from './components/DateFilter.vue'
 import SkeletonLoader from '@/shared/components/SkeletonLoader.vue'
 import { useDashboard } from './composables/useDashboard'
