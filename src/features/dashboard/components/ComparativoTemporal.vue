@@ -79,9 +79,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { getCrimes } from '@/features/mapa-crimes/data/mockCrimes'
+import { crimesMock } from '@/features/mapa-crimes/services/crimeService'
 
-const crimes = getCrimes()
+const crimes = crimesMock
 const modo = ref<'mes' | 'ano'>('mes')
 
 const agora = new Date()
