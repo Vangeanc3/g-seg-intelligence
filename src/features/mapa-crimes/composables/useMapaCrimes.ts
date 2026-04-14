@@ -1,96 +1,136 @@
-import { ref, computed } from 'vue'
-import type { Crime, TipoCrime, FiltrosCrime } from '../types/crime'
-import { getCrimes, getCrimesGeoJSON } from '../services/crimeService'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { crimesService } from '../services/crimesService'
+import {
+  riscoService,
+  type BairrosPoligonosGeoJson,
+} from '../services/riscoService'
+import {
+  criarGeoJsonVazio,
+  type CrimesGeoJson,
+  type FiltrosCrime,
+} from '../types/crime'
+
+function extrairBairros(geojson: CrimesGeoJson): string[] {
+  const bairros = new Set(
+    geojson.features
+      .map((feature) => feature.properties.bairro)
+      .filter((bairro) => !!bairro),
+  )
+
+  return Array.from(bairros).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
 
 export function useMapaCrimes() {
-  const crimes = ref<Crime[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  const geojson = ref<CrimesGeoJson>(criarGeoJsonVazio())
+  const bairrosPoligonos = ref<BairrosPoligonosGeoJson>({
+    type: 'FeatureCollection',
+    features: [],
+  })
+  const carregando = ref(false)
+  const erro = ref<string | null>(null)
+  const bairrosDisponiveis = ref<string[]>([])
   const filtros = ref<FiltrosCrime>({
-    tipos: [],
+    natureza: '',
+    bairro: '',
     dataInicio: '',
     dataFim: '',
-    bairros: [],
-  })
-  const visualizacao = ref<'pontos' | 'heatmap' | 'clusters'>('pontos')
-
-  const crimesFiltrados = computed(() => {
-    let resultado = crimes.value
-
-    if (filtros.value.tipos.length > 0) {
-      resultado = resultado.filter((c) => filtros.value.tipos.includes(c.tipo))
-    }
-    if (filtros.value.bairros.length > 0) {
-      resultado = resultado.filter((c) => filtros.value.bairros.includes(c.bairro))
-    }
-    if (filtros.value.dataInicio) {
-      resultado = resultado.filter((c) => c.data >= filtros.value.dataInicio)
-    }
-    if (filtros.value.dataFim) {
-      resultado = resultado.filter((c) => c.data <= filtros.value.dataFim)
-    }
-
-    return resultado
   })
 
-  const geojson = computed(() => getCrimesGeoJSON(crimesFiltrados.value))
-
-  const bairrosDisponiveis = computed(() => {
-    const set = new Set(crimes.value.map((c) => c.bairro))
-    return Array.from(set).sort()
-  })
-
-  const estatisticas = computed(() => ({
-    total: crimesFiltrados.value.length,
-    porTipo: Object.entries(
-      crimesFiltrados.value.reduce(
-        (acc, c) => {
-          acc[c.tipo] = (acc[c.tipo] || 0) + 1
-          return acc
-        },
-        {} as Record<string, number>
-      )
-    ),
-  }))
+  let timer: ReturnType<typeof setTimeout> | null = null
 
   async function carregarCrimes() {
-    loading.value = true
-    error.value = null
+    carregando.value = true
+    erro.value = null
+
     try {
-      crimes.value = await getCrimes()
-    } catch (e) {
-      error.value = 'Erro ao carregar crimes'
-      console.error(e)
+      const response = await crimesService.getGeoJson({
+        natureza: filtros.value.natureza || undefined,
+        bairro: filtros.value.bairro || undefined,
+        dataInicio: filtros.value.dataInicio || undefined,
+        dataFim: filtros.value.dataFim || undefined,
+      })
+
+      geojson.value = response
+
+      const bairros = extrairBairros(response)
+      if (bairros.length > 0) {
+        bairrosDisponiveis.value = bairros
+      }
+    } catch {
+      erro.value = 'Erro ao carregar crimes. Verifique o servidor.'
+      geojson.value = criarGeoJsonVazio()
     } finally {
-      loading.value = false
+      carregando.value = false
     }
   }
 
-  function toggleTipo(tipo: TipoCrime) {
-    const index = filtros.value.tipos.indexOf(tipo)
-    if (index === -1) {
-      filtros.value.tipos.push(tipo)
-    } else {
-      filtros.value.tipos.splice(index, 1)
+  async function carregarBairrosPoligonos() {
+    try {
+      bairrosPoligonos.value = await riscoService.getBairrosPoligonos({
+        dataInicio: filtros.value.dataInicio || undefined,
+        dataFim: filtros.value.dataFim || undefined,
+        natureza: filtros.value.natureza || undefined,
+      })
+    } catch (error) {
+      console.error('Erro ao carregar poligonos de bairros:', error)
+      bairrosPoligonos.value = { type: 'FeatureCollection', features: [] }
     }
   }
 
   function limparFiltros() {
-    filtros.value = { tipos: [], dataInicio: '', dataFim: '', bairros: [] }
+    filtros.value = {
+      natureza: '',
+      bairro: '',
+      dataInicio: '',
+      dataFim: '',
+    }
   }
 
-  return {
-    crimes,
-    crimesFiltrados,
-    geojson,
-    loading,
-    error,
+  watch(
     filtros,
-    visualizacao,
+    () => {
+      if (timer) clearTimeout(timer)
+
+      timer = setTimeout(() => {
+        void carregarCrimes()
+        void carregarBairrosPoligonos()
+      }, 300)
+    },
+    { deep: true },
+  )
+
+  onUnmounted(() => {
+    if (timer) clearTimeout(timer)
+  })
+
+  void carregarCrimes()
+  void carregarBairrosPoligonos()
+
+  const crimesFiltrados = computed(() => geojson.value.features)
+  const totalCrimes = computed(() => geojson.value.features.length)
+
+  const tiposCrime = computed(() => {
+    const contagem: Record<string, number> = {}
+
+    geojson.value.features.forEach((feature) => {
+      const natureza = feature.properties.natureza
+      contagem[natureza] = (contagem[natureza] || 0) + 1
+    })
+
+    return contagem
+  })
+
+  return {
+    geojson,
+    bairrosPoligonos,
+    crimesFiltrados,
+    filtros,
+    tiposCrime,
     bairrosDisponiveis,
-    estatisticas,
-    carregarCrimes,
-    toggleTipo,
+    totalCrimes,
+    carregando,
+    erro,
     limparFiltros,
+    recarregar: carregarCrimes,
   }
 }

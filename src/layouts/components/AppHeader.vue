@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { authService } from '@/core/auth/authService'
+import { authService } from '@/features/auth/services/authService'
 import { useToast } from '@/shared/composables/useToast'
 import LogoutModal from '@/shared/components/LogoutModal.vue'
 import NotificacoesDropdown from '@/shared/components/NotificacoesDropdown.vue'
@@ -105,11 +105,10 @@ function toggleUserMenu() {
 
 function confirmarLogout() {
   authService.logout()
-  localStorage.removeItem('g-seg-perfil')
   mostrarLogout.value = false
   showUserMenu.value = false
   toast.info('Você saiu da plataforma.')
-  router.push('/')
+  router.push('/auth/login')
 }
 </script>
 

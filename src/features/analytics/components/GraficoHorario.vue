@@ -1,56 +1,58 @@
 <template>
   <div class="grafico-container">
-    <h3 class="grafico-titulo">Crimes por Horário</h3>
+    <h3 class="grafico-titulo">Crimes por Faixa Horaria</h3>
     <canvas ref="chartRef"></canvas>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Chart,
-  LineController,
-  LineElement,
-  PointElement,
+  BarController,
+  BarElement,
   CategoryScale,
   LinearScale,
-  Filler,
   Tooltip,
 } from 'chart.js'
+import type { LabelTotal } from '../services/analyticsService'
 
-Chart.register(LineController, LineElement, PointElement, CategoryScale, LinearScale, Filler, Tooltip)
+Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
+
+const ORDEM_FAIXAS = ['00-06', '06-12', '12-18', '18-24'] as const
 
 const props = defineProps<{
-  dados: { hora: string; total: number }[]
+  dados: LabelTotal[]
 }>()
 
 const chartRef = ref<HTMLCanvasElement | null>(null)
 let chart: Chart | null = null
 
+function dadosOrdenados() {
+  return [...props.dados].sort(
+    (a, b) => ORDEM_FAIXAS.indexOf(a.label as (typeof ORDEM_FAIXAS)[number]) -
+      ORDEM_FAIXAS.indexOf(b.label as (typeof ORDEM_FAIXAS)[number]),
+  )
+}
+
 function renderChart() {
   if (!chartRef.value) return
   if (chart) chart.destroy()
 
-  const ctx = chartRef.value.getContext('2d')!
-  const gradient = ctx.createLinearGradient(0, 0, 0, 250)
-  gradient.addColorStop(0, 'rgba(139, 92, 246, 0.3)')
-  gradient.addColorStop(1, 'rgba(139, 92, 246, 0)')
+  const dados = dadosOrdenados()
 
   chart = new Chart(chartRef.value, {
-    type: 'line',
+    type: 'bar',
     data: {
-      labels: props.dados.map(d => d.hora),
-      datasets: [{
-        data: props.dados.map(d => d.total),
-        borderColor: '#8b5cf6',
-        backgroundColor: gradient,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#8b5cf6',
-        borderWidth: 2,
-      }],
+      labels: dados.map((item) => item.label),
+      datasets: [
+        {
+          data: dados.map((item) => item.total),
+          backgroundColor: ['#312e81', '#4338ca', '#7c3aed', '#a855f7'],
+          borderRadius: 8,
+          barThickness: 42,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -69,8 +71,8 @@ function renderChart() {
       },
       scales: {
         x: {
-          grid: { color: '#1e293b' },
-          ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0 },
+          grid: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 12 } },
         },
         y: {
           grid: { color: '#1e293b' },

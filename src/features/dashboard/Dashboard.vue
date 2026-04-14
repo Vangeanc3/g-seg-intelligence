@@ -1,65 +1,96 @@
 <template>
   <div class="dashboard">
-    <!-- Cabeçalho com filtro -->
     <div class="dashboard-header">
       <div>
-        <h1>Dashboard - Belém/PA</h1>
-        <p class="subtitle">Visão geral da criminalidade</p>
+        <h1>Dashboard - Belem/PA</h1>
+        <p class="subtitle">Visao geral da criminalidade</p>
       </div>
-      <DateFilter v-model="dateFilter" @update:model-value="updateDateFilter" />
+      <DateFilter
+        :model-value="dateFilter"
+        @update:model-value="updateDateFilter"
+      />
     </div>
 
-    <!-- Cards de Estatísticas -->
-    <div v-if="carregando" class="stats-grid-sk">
-      <SkeletonLoader v-for="i in 4" :key="i" tipo="card" />
+    <div v-if="erro" class="dashboard-feedback">
+      <ErrorMessage :message="erro" />
+      <BaseButton variant="secondary" @click="recarregar">
+        Tentar novamente
+      </BaseButton>
     </div>
-    <StatsCards v-else :stats="stats" />
 
-    <!-- Gráficos -->
-    <template v-if="carregando">
+    <template v-else-if="carregando">
+      <div class="stats-grid-sk">
+        <SkeletonLoader v-for="i in 4" :key="i" tipo="card" />
+      </div>
+
       <div class="charts-grid">
         <SkeletonLoader tipo="grafico" />
         <SkeletonLoader tipo="grafico" />
       </div>
+
+      <SkeletonLoader tipo="tabela" :linhas="5" />
+      <SkeletonLoader tipo="tabela" :linhas="6" />
     </template>
+
+    <div v-else-if="!analytics" class="dashboard-empty">
+      <EmptyState
+        titulo="Sem dados no dashboard"
+        descricao="Nao foi possivel montar os indicadores com os dados atuais."
+        icone="mdi mdi-chart-box-outline"
+      />
+    </div>
+
     <template v-else>
+      <StatsCards
+        :total="totalCrimes"
+        :tipo-mais-frequente="tipoMaisFrequente"
+        :faixa-pico="faixaPico"
+        :categoria-top="categoriaTop"
+      />
+
       <div class="charts-grid">
         <CrimeChart :data="crimesByDate" />
         <CrimeTypeChart :data="crimesByType" />
       </div>
+
+      <RecentCrimes :crimes="crimesRecentes" />
+      <ComparativoTemporal />
     </template>
-
-    <!-- Tabela de Últimas Ocorrências -->
-    <SkeletonLoader v-if="carregando" tipo="tabela" :linhas="5" />
-    <RecentCrimes v-else :crimes="recentCrimes" />
-
-    <!-- Comparativo Temporal -->
-    <SkeletonLoader v-if="carregando" tipo="tabela" :linhas="6" />
-    <ComparativoTemporal v-else />
   </div>
 </template>
 
 <script setup lang="ts">
+defineOptions({
+  name: 'DashboardPage',
+})
+
+import DateFilter from './components/DateFilter.vue'
 import StatsCards from './components/StatsCards.vue'
 import CrimeChart from './components/CrimeChart.vue'
 import CrimeTypeChart from './components/CrimeTypeChart.vue'
 import RecentCrimes from './components/RecentCrimes.vue'
 import ComparativoTemporal from './components/ComparativoTemporal.vue'
-import DateFilter from './components/DateFilter.vue'
+import BaseButton from '@/shared/components/BaseButton.vue'
+import EmptyState from '@/shared/components/EmptyState.vue'
+import ErrorMessage from '@/shared/components/ErrorMessage.vue'
 import SkeletonLoader from '@/shared/components/SkeletonLoader.vue'
 import { useDashboard } from './composables/useDashboard'
-import { useLoading } from '@/shared/composables/useLoading'
 
 const {
+  analytics,
   dateFilter,
-  stats,
+  crimesRecentes,
+  totalCrimes,
+  tipoMaisFrequente,
+  faixaPico,
+  categoriaTop,
   crimesByDate,
   crimesByType,
-  recentCrimes,
-  updateDateFilter
+  carregando,
+  erro,
+  updateDateFilter,
+  recarregar,
 } = useDashboard()
-
-const { carregando } = useLoading(1000)
 </script>
 
 <style scoped>
@@ -93,6 +124,19 @@ const { carregando } = useLoading(1000)
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1rem;
   margin-bottom: 0;
+}
+
+.dashboard-feedback,
+.dashboard-empty {
+  margin-bottom: 2rem;
+}
+
+.dashboard-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .charts-grid {

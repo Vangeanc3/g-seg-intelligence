@@ -1,9 +1,15 @@
 <template>
   <div class="relatorios">
-    <h1>Relatórios</h1>
-    <p>Geração de relatórios e análises - Em desenvolvimento</p>
+    <h1>Relatorios</h1>
+    <p>Geracao de relatorios e analises - Em desenvolvimento</p>
   </div>
 </template>
+
+<script setup lang="ts">
+defineOptions({
+  name: 'RelatoriosPlaceholder',
+})
+</script>
 
 <style scoped>
 .relatorios {

@@ -1,35 +1,38 @@
 <template>
   <BaseCard>
     <template #header>
-      <h3>Últimas Ocorrências</h3>
+      <h3>Ultimas Ocorrencias</h3>
     </template>
+
     <div class="table-container">
       <table class="crimes-table">
         <thead>
           <tr>
-            <th>Tipo</th>
-            <th>Data/Hora</th>
-            <th>Local</th>
-            <th>Status</th>
-            <th>Prioridade</th>
+            <th>Natureza</th>
+            <th>Categoria</th>
+            <th>Bairro</th>
+            <th>Data</th>
+            <th>Hora</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="crime in crimes" :key="crime.id">
+          <tr v-for="crime in crimes" :key="chaveCrime(crime)">
             <td>
-              <span class="crime-type">{{ crime.type }}</span>
-            </td>
-            <td class="date-cell">{{ crime.date }}</td>
-            <td class="location-cell">{{ crime.location }}</td>
-            <td>
-              <span class="status-badge" :class="`status-${crime.status}`">
-                {{ getStatusLabel(crime.status) }}
+              <span
+                class="crime-type"
+                :style="{ color: corNatureza(crime.properties.natureza) }"
+              >
+                {{ labelNatureza(crime.properties.natureza) }}
               </span>
             </td>
-            <td>
-              <span class="priority-badge" :class="`priority-${crime.priority}`">
-                {{ getPriorityLabel(crime.priority) }}
-              </span>
+            <td class="category-cell">{{ crime.properties.categoria || '--' }}</td>
+            <td class="bairro-cell">{{ crime.properties.bairro || '--' }}</td>
+            <td class="date-cell">{{ formatarDataCrime(crime.properties.dataFato) }}</td>
+            <td class="hour-cell">{{ formatarHoraCrime(crime.properties.horaFato) }}</td>
+          </tr>
+          <tr v-if="!crimes.length">
+            <td colspan="5" class="empty-cell">
+              Nenhuma ocorrencia encontrada para o periodo selecionado.
             </td>
           </tr>
         </tbody>
@@ -40,31 +43,18 @@
 
 <script setup lang="ts">
 import BaseCard from '@/shared/components/BaseCard.vue'
-import type { RecentCrime } from '../types/dashboard'
+import type { CrimesGeoJson } from '@/features/mapa-crimes/services/crimesService'
+import {
+  chaveCrime,
+  corNatureza,
+  formatarDataCrime,
+  formatarHoraCrime,
+  labelNatureza,
+} from '@/features/mapa-crimes/types/crime'
 
-interface Props {
-  crimes: RecentCrime[]
-}
-
-defineProps<Props>()
-
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    aberto: 'Aberto',
-    em_investigacao: 'Em Investigação',
-    solucionado: 'Solucionado'
-  }
-  return labels[status] || status
-}
-
-function getPriorityLabel(priority: string): string {
-  const labels: Record<string, string> = {
-    baixa: 'Baixa',
-    media: 'Média',
-    alta: 'Alta'
-  }
-  return labels[priority] || priority
-}
+defineProps<{
+  crimes: CrimesGeoJson['features']
+}>()
 </script>
 
 <style scoped>
@@ -110,56 +100,27 @@ h3 {
 }
 
 .crime-type {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .date-cell {
   color: #94a3b8;
 }
 
-.location-cell {
-  max-width: 200px;
+.category-cell {
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-badge,
-.priority-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.status-aberto {
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
-}
-
-.status-em_investigacao {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
-}
-
-.status-solucionado {
-  background: rgba(34, 197, 94, 0.1);
-  color: #86efac;
-}
-
-.priority-baixa {
-  background: rgba(148, 163, 184, 0.1);
+.bairro-cell,
+.hour-cell {
   color: #cbd5e1;
 }
 
-.priority-media {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
-}
-
-.priority-alta {
-  background: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
+.empty-cell {
+  text-align: center;
+  color: #94a3b8;
 }
 </style>

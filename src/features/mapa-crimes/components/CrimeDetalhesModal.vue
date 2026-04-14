@@ -12,35 +12,40 @@
 
       <div class="modal-body">
         <div class="detalhe-grupo">
-          <span class="detalhe-label">Endereço</span>
-          <span class="detalhe-valor">{{ crime.endereco }}</span>
+          <span class="detalhe-label">Natureza</span>
+          <span class="detalhe-valor">{{ labelTipo }}</span>
         </div>
 
         <div class="detalhe-grupo">
-          <span class="detalhe-label">Bairro</span>
-          <span class="detalhe-valor">{{ crime.bairro }}</span>
+          <span class="detalhe-label">Categoria</span>
+          <span class="detalhe-valor">{{ crime.properties.categoria }}</span>
         </div>
 
         <div class="detalhe-grupo">
           <span class="detalhe-label">Data</span>
-          <span class="detalhe-valor">{{ dataFormatada }}</span>
+          <span class="detalhe-valor">{{ formatarDataCrime(crime.properties.dataFato) }}</span>
+        </div>
+
+        <div v-if="crime.properties.horaFato" class="detalhe-grupo">
+          <span class="detalhe-label">Hora</span>
+          <span class="detalhe-valor">{{ crime.properties.horaFato }}</span>
         </div>
 
         <div class="detalhe-grupo">
-          <span class="detalhe-label">Status</span>
-          <span class="status-badge" :style="{ color: corStatus, background: corStatus + '20' }">
-            {{ statusLabel }}
+          <span class="detalhe-label">Bairro</span>
+          <span class="detalhe-valor">{{ crime.properties.bairro }}</span>
+        </div>
+
+        <div v-if="crime.properties.meioEmpregado" class="detalhe-grupo">
+          <span class="detalhe-label">Meio Empregado</span>
+          <span class="detalhe-valor">{{ crime.properties.meioEmpregado }}</span>
+        </div>
+
+        <div v-if="crime.properties.sexoVitima" class="detalhe-grupo">
+          <span class="detalhe-label">Vitima</span>
+          <span class="detalhe-valor">
+            {{ formatarVitima(crime.properties.sexoVitima, crime.properties.idadeVitima) }}
           </span>
-        </div>
-
-        <div class="detalhe-grupo">
-          <span class="detalhe-label">Descrição</span>
-          <span class="detalhe-valor descricao">{{ crime.descricao }}</span>
-        </div>
-
-        <div class="detalhe-grupo">
-          <span class="detalhe-label">ID</span>
-          <span class="detalhe-valor id-text">{{ crime.id }}</span>
         </div>
       </div>
     </div>
@@ -48,69 +53,50 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, onUnmounted } from 'vue'
-import type { Crime } from '../types/crime'
-import { CRIME_CORES, CRIME_LABELS } from '../types/crime'
+import { computed, onUnmounted, watch } from 'vue'
+import {
+  corNatureza,
+  formatarDataCrime,
+  formatarVitima,
+  labelNatureza,
+  type CrimeFeature,
+} from '../types/crime'
 
 interface Props {
-  crime: Crime | null
+  crime: CrimeFeature | null
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{ fechar: [] }>()
 
-// Fechar com tecla ESC
 function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.crime) {
     emit('fechar')
   }
 }
 
-watch(() => props.crime, (crime) => {
-  if (crime) {
-    window.addEventListener('keydown', handleEscape)
-  } else {
-    window.removeEventListener('keydown', handleEscape)
-  }
-})
+watch(
+  () => props.crime,
+  (crime) => {
+    if (crime) {
+      window.addEventListener('keydown', handleEscape)
+    } else {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  },
+)
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleEscape)
 })
 
-const corTipo = computed(() => props.crime ? CRIME_CORES[props.crime.tipo] : '#6b7280')
-const labelTipo = computed(() => props.crime ? CRIME_LABELS[props.crime.tipo] : '')
+const corTipo = computed(() =>
+  props.crime ? corNatureza(props.crime.properties.natureza) : '#6b7280',
+)
 
-const dataFormatada = computed(() => {
-  if (!props.crime) return ''
-  return new Date(props.crime.data).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-})
-
-const corStatus = computed(() => {
-  if (!props.crime) return '#6b7280'
-  const cores: Record<string, string> = {
-    solucionado: '#22c55e',
-    em_investigacao: '#f59e0b',
-    aberto: '#ef4444',
-  }
-  return cores[props.crime.status] || '#6b7280'
-})
-
-const statusLabel = computed(() => {
-  if (!props.crime) return ''
-  const labels: Record<string, string> = {
-    solucionado: 'Solucionado',
-    em_investigacao: 'Em investigação',
-    aberto: 'Aberto',
-  }
-  return labels[props.crime.status] || props.crime.status
-})
+const labelTipo = computed(() =>
+  props.crime ? labelNatureza(props.crime.properties.natureza) : '',
+)
 </script>
 
 <style scoped>
@@ -150,7 +136,6 @@ const statusLabel = computed(() => {
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 600;
-  text-transform: capitalize;
 }
 
 .btn-fechar {
@@ -194,27 +179,6 @@ const statusLabel = computed(() => {
   color: #e2e8f0;
 }
 
-.descricao {
-  color: #94a3b8;
-  line-height: 1.5;
-}
-
-.id-text {
-  font-family: monospace;
-  color: #64748b;
-  font-size: 0.75rem;
-}
-
-.status-badge {
-  display: inline-block;
-  width: fit-content;
-  padding: 0.25rem 0.625rem;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-}
-
-/* Animação slide-in */
 .slide-enter-active,
 .slide-leave-active {
   transition: all 0.3s ease;

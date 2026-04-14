@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Chart,
   BarController,
@@ -15,36 +15,48 @@ import {
   LinearScale,
   Tooltip,
 } from 'chart.js'
+import type { LabelTotal } from '../services/analyticsService'
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip)
 
+const ORDEM_DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'DOM'] as const
+
 const props = defineProps<{
-  dados: { dia: string; total: number }[]
+  dados: LabelTotal[]
 }>()
 
 const chartRef = ref<HTMLCanvasElement | null>(null)
 let chart: Chart | null = null
 
+function dadosOrdenados() {
+  return [...props.dados].sort(
+    (a, b) => ORDEM_DIAS.indexOf(a.label as (typeof ORDEM_DIAS)[number]) -
+      ORDEM_DIAS.indexOf(b.label as (typeof ORDEM_DIAS)[number]),
+  )
+}
+
 function renderChart() {
   if (!chartRef.value) return
   if (chart) chart.destroy()
 
-  const cores = props.dados.map(d => {
-    const max = Math.max(...props.dados.map(x => x.total))
-    const intensidade = d.total / max
-    return `rgba(59, 130, 246, ${0.3 + intensidade * 0.7})`
-  })
+  const dados = dadosOrdenados()
+  const max = Math.max(...dados.map((item) => item.total), 1)
+  const cores = dados.map(
+    (item) => `rgba(59, 130, 246, ${0.3 + (item.total / max) * 0.7})`,
+  )
 
   chart = new Chart(chartRef.value, {
     type: 'bar',
     data: {
-      labels: props.dados.map(d => d.dia),
-      datasets: [{
-        data: props.dados.map(d => d.total),
-        backgroundColor: cores,
-        borderRadius: 6,
-        barThickness: 32,
-      }],
+      labels: dados.map((item) => item.label),
+      datasets: [
+        {
+          data: dados.map((item) => item.total),
+          backgroundColor: cores,
+          borderRadius: 6,
+          barThickness: 32,
+        },
+      ],
     },
     options: {
       responsive: true,

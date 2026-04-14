@@ -9,7 +9,10 @@
       "Bash(node scripts/extract-boundary.cjs:*)",
       "Bash(node scripts/download-rmb.cjs:*)",
       "Bash(node scripts/download-belem.cjs:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npx vite:*)"
     ]
   }
 }

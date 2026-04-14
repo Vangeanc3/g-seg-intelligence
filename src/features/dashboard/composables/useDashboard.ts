@@ -1,115 +1,141 @@
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
+import {
+  analyticsService,
+  type AnalyticsResponse,
+  type LabelTotal,
+} from '@/features/analytics/services/analyticsService'
+import {
+  crimesService,
+  type CrimesGeoJson,
+} from '@/features/mapa-crimes/services/crimesService'
+import { corNatureza, labelNatureza } from '@/features/mapa-crimes/types/crime'
 import type {
-  DashboardStats,
   CrimeByDate,
   CrimeByType,
-  RecentCrime
+  DateFilterOption,
 } from '../types/dashboard'
 
-export function useDashboard() {
-  const loading = ref(false)
-  const dateFilter = ref<string>('30d')
+function formatarData(data: Date): string {
+  const ano = data.getFullYear()
+  const mes = String(data.getMonth() + 1).padStart(2, '0')
+  const dia = String(data.getDate()).padStart(2, '0')
 
-  // Stats mockados
-  const stats = ref<DashboardStats>({
-    totalCrimes: 1247,
-    solvedCases: 623,
-    investigating: 412,
-    resolutionRate: 49.9,
-    changePercent: {
-      totalCrimes: 12,
-      solvedCases: 8,
-      investigating: 0,
-      resolutionRate: 2.3
-    }
-  })
+  return `${ano}-${mes}-${dia}`
+}
 
-  // Dados para gráfico de linha (últimos 30 dias)
-  const crimesByDate = ref<CrimeByDate[]>([
-    { date: '2026-01-15', count: 42 },
-    { date: '2026-01-16', count: 38 },
-    { date: '2026-01-17', count: 45 },
-    { date: '2026-01-18', count: 51 },
-    { date: '2026-01-19', count: 39 },
-    { date: '2026-01-20', count: 47 },
-    { date: '2026-01-21', count: 43 },
-    { date: '2026-01-22', count: 49 },
-    { date: '2026-01-23', count: 52 },
-    { date: '2026-01-24', count: 44 },
-    { date: '2026-01-25', count: 41 },
-    { date: '2026-01-26', count: 38 },
-    { date: '2026-01-27', count: 46 },
-    { date: '2026-01-28', count: 50 },
-    { date: '2026-01-29', count: 48 },
-    { date: '2026-01-30', count: 45 }
-  ])
+function criarFiltrosPeriodo(periodo: DateFilterOption) {
+  const fim = new Date()
+  const inicio = new Date()
+  const dias = periodo === '7d' ? 7 : periodo === '30d' ? 30 : 90
 
-  // Dados para gráfico de pizza (tipos de crime)
-  const crimesByType = ref<CrimeByType[]>([
-    { type: 'Roubo', count: 487, percentage: 39, color: '#ef4444' },
-    { type: 'Furto', count: 374, percentage: 30, color: '#f59e0b' },
-    { type: 'Agressão', count: 186, percentage: 15, color: '#ec4899' },
-    { type: 'Tráfico', count: 124, percentage: 10, color: '#8b5cf6' },
-    { type: 'Outros', count: 76, percentage: 6, color: '#6b7280' }
-  ])
-
-  // Últimas ocorrências
-  const recentCrimes = ref<RecentCrime[]>([
-    {
-      id: '1',
-      type: 'Roubo',
-      date: '2026-02-13 14:30',
-      location: 'Av. Nazaré, Umarizal',
-      status: 'em_investigacao',
-      priority: 'alta'
-    },
-    {
-      id: '2',
-      type: 'Furto',
-      date: '2026-02-13 12:15',
-      location: 'Travessa Padre Eutíquio, Batista Campos',
-      status: 'aberto',
-      priority: 'media'
-    },
-    {
-      id: '3',
-      type: 'Agressão',
-      date: '2026-02-13 09:45',
-      location: 'Rua João Diogo, Cidade Velha',
-      status: 'solucionado',
-      priority: 'baixa'
-    },
-    {
-      id: '4',
-      type: 'Tráfico',
-      date: '2026-02-12 23:20',
-      location: 'Av. Pedro Miranda, Pedreira',
-      status: 'em_investigacao',
-      priority: 'alta'
-    },
-    {
-      id: '5',
-      type: 'Roubo',
-      date: '2026-02-12 18:00',
-      location: 'Av. Governador José Malcher, Nazaré',
-      status: 'aberto',
-      priority: 'media'
-    }
-  ])
-
-  function updateDateFilter(filter: string) {
-    dateFilter.value = filter
-    // Aqui vai buscar novos dados quando conectar API
-    console.log('Filtro atualizado:', filter)
-  }
+  inicio.setDate(inicio.getDate() - dias)
 
   return {
-    loading,
-    dateFilter,
-    stats,
+    dataInicio: formatarData(inicio),
+    dataFim: formatarData(fim),
+  }
+}
+
+function maiorItem(lista: LabelTotal[] | undefined): LabelTotal | null {
+  if (!lista?.length) return null
+
+  return lista.reduce((maior, atual) => (
+    atual.total > maior.total ? atual : maior
+  ))
+}
+
+function crimeDateTime(crime: CrimesGeoJson['features'][number]): string {
+  return `${crime.properties.dataFato}T${crime.properties.horaFato || '00:00:00'}`
+}
+
+export function useDashboard() {
+  const analytics = ref<AnalyticsResponse | null>(null)
+  const crimesRecentes = ref<CrimesGeoJson['features']>([])
+  const carregando = ref(false)
+  const erro = ref<string | null>(null)
+  const dateFilter = ref<DateFilterOption>('30d')
+
+  async function carregar() {
+    carregando.value = true
+    erro.value = null
+
+    try {
+      const filtros = criarFiltrosPeriodo(dateFilter.value)
+
+      const [analyticsData, geoJson] = await Promise.all([
+        analyticsService.get(filtros),
+        crimesService.getGeoJson(filtros),
+      ])
+
+      analytics.value = analyticsData
+      crimesRecentes.value = [...geoJson.features]
+        .sort((a, b) => crimeDateTime(b).localeCompare(crimeDateTime(a)))
+        .slice(0, 10)
+    } catch {
+      erro.value = 'Erro ao carregar dashboard'
+      analytics.value = null
+      crimesRecentes.value = []
+    } finally {
+      carregando.value = false
+    }
+  }
+
+  function updateDateFilter(filter: string) {
+    dateFilter.value = filter as DateFilterOption
+    void carregar()
+  }
+
+  const totalCrimes = computed(() => analytics.value?.totalCrimes ?? 0)
+
+  const tipoMaisFrequente = computed(() => {
+    const top = maiorItem(analytics.value?.porNatureza)
+    return top ? { nome: labelNatureza(top.label), total: top.total } : null
+  })
+
+  const faixaPico = computed(() => {
+    const top = maiorItem(analytics.value?.porFaixaHoraria)
+    return top ? { label: top.label, total: top.total } : { label: '-', total: 0 }
+  })
+
+  const categoriaTop = computed(() => {
+    const top = maiorItem(analytics.value?.topCategorias)
+    return top ? { nome: top.label, total: top.total } : null
+  })
+
+  const crimesByDate = computed<CrimeByDate[]>(() =>
+    (analytics.value?.porMes || []).map((item) => ({
+      date: `${item.label}-01`,
+      count: item.total,
+    })),
+  )
+
+  const crimesByType = computed<CrimeByType[]>(() => {
+    const dados = analytics.value?.porNatureza || []
+    const total = dados.reduce((acc, item) => acc + item.total, 0) || 1
+
+    return dados.map((item) => ({
+      type: labelNatureza(item.label),
+      count: item.total,
+      percentage: Math.round((item.total / total) * 100),
+      color: corNatureza(item.label),
+    }))
+  })
+
+  void carregar()
+
+  return {
+    analytics,
+    crimesRecentes,
+    totalCrimes,
+    tipoMaisFrequente,
+    faixaPico,
+    categoriaTop,
     crimesByDate,
     crimesByType,
-    recentCrimes,
-    updateDateFilter
+    dateFilter,
+    carregando,
+    erro,
+    updateDateFilter,
+    recarregar: carregar,
   }
 }

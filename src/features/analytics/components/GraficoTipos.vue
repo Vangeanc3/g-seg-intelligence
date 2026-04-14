@@ -1,12 +1,12 @@
 <template>
   <div class="grafico-container">
-    <h3 class="grafico-titulo">Distribuição por Tipo</h3>
+    <h3 class="grafico-titulo">Distribuicao por Natureza</h3>
     <canvas ref="chartRef"></canvas>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Chart,
   DoughnutController,
@@ -14,11 +14,13 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import type { LabelTotal } from '../services/analyticsService'
+import { corNatureza, labelNatureza } from '@/features/mapa-crimes/types/crime'
 
 Chart.register(DoughnutController, ArcElement, Tooltip, Legend)
 
 const props = defineProps<{
-  dados: { label: string; total: number; cor: string }[]
+  dados: LabelTotal[]
 }>()
 
 const chartRef = ref<HTMLCanvasElement | null>(null)
@@ -31,14 +33,16 @@ function renderChart() {
   chart = new Chart(chartRef.value, {
     type: 'doughnut',
     data: {
-      labels: props.dados.map(d => d.label),
-      datasets: [{
-        data: props.dados.map(d => d.total),
-        backgroundColor: props.dados.map(d => d.cor),
-        borderColor: '#1e293b',
-        borderWidth: 3,
-        hoverOffset: 6,
-      }],
+      labels: props.dados.map((item) => labelNatureza(item.label)),
+      datasets: [
+        {
+          data: props.dados.map((item) => item.total),
+          backgroundColor: props.dados.map((item) => corNatureza(item.label)),
+          borderColor: '#1e293b',
+          borderWidth: 3,
+          hoverOffset: 6,
+        },
+      ],
     },
     options: {
       responsive: true,

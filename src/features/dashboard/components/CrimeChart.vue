@@ -43,15 +43,30 @@ interface Props {
 
 const props = defineProps<Props>()
 
+function formatarLabel(data: string): string {
+  const partes = data.split('-').map(Number)
+  const ano = partes[0]
+  const mes = partes[1]
+  const dia = partes[2] ?? 1
+
+  if (!ano || !mes) {
+    return data
+  }
+
+  const dataLocal = new Date(ano, mes - 1, dia)
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'short',
+    year: '2-digit',
+  }).format(dataLocal).replace('.', '')
+}
+
 const chartData = computed(() => ({
-  labels: props.data.map(d => {
-    const date = new Date(d.date)
-    return `${date.getDate()}/${date.getMonth() + 1}`
-  }),
+  labels: props.data.map((d) => formatarLabel(d.date)),
   datasets: [
     {
       label: 'Crimes',
-      data: props.data.map(d => d.count),
+      data: props.data.map((d) => d.count),
       borderColor: '#3b82f6',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       fill: true,

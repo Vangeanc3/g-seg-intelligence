@@ -10,20 +10,10 @@
       </div>
       <div class="card-content">
         <span class="card-titulo">{{ card.titulo }}</span>
-        <div class="card-valor-row">
-          <span class="card-valor">
-            <AnimatedNumber v-if="typeof card.valor === 'number'" :valor="card.valor" />
-            <template v-else>{{ card.valor }}</template>
-          </span>
-          <span
-            v-if="card.variacao !== undefined"
-            class="card-variacao"
-            :class="card.variacao >= 0 ? 'up' : 'down'"
-          >
-            <i :class="card.variacao >= 0 ? 'mdi mdi-arrow-up' : 'mdi mdi-arrow-down'"></i>
-            {{ Math.abs(card.variacao) }}%
-          </span>
-        </div>
+        <span class="card-valor">
+          <AnimatedNumber v-if="typeof card.valor === 'number'" :valor="card.valor" />
+          <template v-else>{{ card.valor }}</template>
+        </span>
         <span v-if="card.subtitulo" class="card-subtitulo">{{ card.subtitulo }}</span>
       </div>
     </div>
@@ -31,12 +21,61 @@
 </template>
 
 <script setup lang="ts">
-import type { AnalyticsCard } from '../types/analytics'
+import { computed } from 'vue'
 import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
+import type { AnalyticsCard } from '../types/analytics'
+import type { LabelTotal } from '../services/analyticsService'
+import { labelNatureza } from '@/features/mapa-crimes/types/crime'
 
-defineProps<{
-  cards: AnalyticsCard[]
+const props = defineProps<{
+  total: number
+  porNatureza: LabelTotal[]
+  porFaixaHoraria: LabelTotal[]
+  topCategorias: LabelTotal[]
 }>()
+
+function maiorItem(lista: LabelTotal[]): LabelTotal | null {
+  if (lista.length === 0) return null
+
+  return [...lista].sort((a, b) => b.total - a.total)[0] || null
+}
+
+const cards = computed<AnalyticsCard[]>(() => {
+  const naturezaLider = maiorItem(props.porNatureza)
+  const faixaPico = maiorItem(props.porFaixaHoraria)
+  const categoriaLider = maiorItem(props.topCategorias)
+
+  return [
+    {
+      titulo: 'Total de Ocorrencias',
+      valor: props.total,
+      subtitulo: 'no periodo filtrado',
+      icone: 'mdi mdi-alert-circle',
+      cor: '#3b82f6',
+    },
+    {
+      titulo: 'Natureza Mais Frequente',
+      valor: naturezaLider ? labelNatureza(naturezaLider.label) : 'N/A',
+      subtitulo: naturezaLider ? `${naturezaLider.total} registros` : 'sem dados',
+      icone: 'mdi mdi-shield-alert',
+      cor: '#ef4444',
+    },
+    {
+      titulo: 'Faixa Horaria de Pico',
+      valor: faixaPico?.label || 'N/A',
+      subtitulo: faixaPico ? `${faixaPico.total} registros` : 'sem dados',
+      icone: 'mdi mdi-clock-outline',
+      cor: '#8b5cf6',
+    },
+    {
+      titulo: 'Top Categoria',
+      valor: categoriaLider?.label || 'N/A',
+      subtitulo: categoriaLider ? `${categoriaLider.total} registros` : 'sem dados',
+      icone: 'mdi mdi-format-list-bulleted-square',
+      cor: '#f59e0b',
+    },
+  ]
+})
 </script>
 
 <style scoped>
@@ -85,12 +124,6 @@ defineProps<{
   font-weight: 500;
 }
 
-.card-valor-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .card-valor {
   font-size: 1.375rem;
   font-weight: 700;
@@ -98,26 +131,6 @@ defineProps<{
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.card-variacao {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
-}
-
-.card-variacao.up {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.card-variacao.down {
-  color: #22c55e;
-  background: rgba(34, 197, 94, 0.1);
 }
 
 .card-subtitulo {

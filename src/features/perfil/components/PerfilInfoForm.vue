@@ -1,48 +1,74 @@
 <template>
   <div class="form-section">
-    <h2 class="section-titulo">Informações Pessoais</h2>
+    <h2 class="section-titulo">Informacoes Pessoais</h2>
 
-    <form @submit.prevent="$emit('salvar')" class="perfil-form">
+    <form @submit.prevent="emit('salvar')" class="perfil-form">
       <div class="form-grid">
         <div class="form-grupo">
           <label class="form-label">Nome completo</label>
-          <input type="text" class="form-input" v-model="usuario.nome" />
+          <input
+            type="text"
+            class="form-input"
+            :value="props.usuario.nome"
+            @input="atualizarCampo('nome', ($event.target as HTMLInputElement).value)"
+          />
         </div>
 
         <div class="form-grupo">
           <label class="form-label">Email</label>
-          <input type="email" class="form-input" v-model="usuario.email" />
+          <input
+            type="email"
+            class="form-input"
+            :value="props.usuario.email"
+            @input="atualizarCampo('email', ($event.target as HTMLInputElement).value)"
+          />
         </div>
 
         <div class="form-grupo">
           <label class="form-label">Telefone</label>
-          <input type="tel" class="form-input" v-model="usuario.telefone" placeholder="(91) 99999-9999" />
+          <input
+            type="tel"
+            class="form-input"
+            :value="props.usuario.telefone"
+            placeholder="(91) 99999-9999"
+            @input="atualizarCampo('telefone', ($event.target as HTMLInputElement).value)"
+          />
         </div>
 
         <div class="form-grupo">
           <label class="form-label">Empresa</label>
-          <input type="text" class="form-input" v-model="usuario.empresa" />
+          <input
+            type="text"
+            class="form-input"
+            :value="props.usuario.empresa"
+            @input="atualizarCampo('empresa', ($event.target as HTMLInputElement).value)"
+          />
         </div>
 
         <div class="form-grupo">
           <label class="form-label">Cargo</label>
-          <input type="text" class="form-input" v-model="usuario.cargo" />
+          <input
+            type="text"
+            class="form-input"
+            :value="props.usuario.cargo"
+            @input="atualizarCampo('cargo', ($event.target as HTMLInputElement).value)"
+          />
         </div>
 
         <div class="form-grupo">
           <label class="form-label">Plano</label>
           <div class="form-input readonly">
-            {{ planoLabel }}
+            {{ props.planoLabel }}
             <a href="/#planos" class="upgrade-link">Alterar plano</a>
           </div>
         </div>
       </div>
 
       <div class="form-actions">
-        <button type="submit" class="btn-salvar" :disabled="salvando">
-          <i v-if="salvando" class="mdi mdi-loading mdi-spin"></i>
+        <button type="submit" class="btn-salvar" :disabled="props.salvando">
+          <i v-if="props.salvando" class="mdi mdi-loading mdi-spin"></i>
           <i v-else class="mdi mdi-check"></i>
-          {{ salvando ? 'Salvando...' : 'Salvar Alterações' }}
+          {{ props.salvando ? 'Salvando...' : 'Salvar Alteracoes' }}
         </button>
       </div>
     </form>
@@ -52,13 +78,23 @@
 <script setup lang="ts">
 import type { Usuario } from '../types/perfil'
 
-defineProps<{
+const props = defineProps<{
   usuario: Usuario
   planoLabel: string
   salvando: boolean
 }>()
 
-defineEmits<{ salvar: [] }>()
+const emit = defineEmits<{
+  salvar: []
+  'update:usuario': [value: Usuario]
+}>()
+
+function atualizarCampo<K extends keyof Usuario>(campo: K, valor: Usuario[K]) {
+  emit('update:usuario', {
+    ...props.usuario,
+    [campo]: valor,
+  })
+}
 </script>
 
 <style scoped>

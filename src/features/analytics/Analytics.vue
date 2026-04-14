@@ -1,9 +1,15 @@
 <template>
   <div class="analytics">
     <h1>Analytics</h1>
-    <p>Análise de eficiência policial - Em desenvolvimento</p>
+    <p>Analise de eficiencia policial - Em desenvolvimento</p>
   </div>
 </template>
+
+<script setup lang="ts">
+defineOptions({
+  name: 'AnalyticsPlaceholder',
+})
+</script>
 
 <style scoped>
 .analytics {

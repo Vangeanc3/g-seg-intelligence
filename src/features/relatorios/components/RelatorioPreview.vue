@@ -15,7 +15,7 @@
         </div>
       </div>
       <div class="preview-periodo">
-        {{ formatDate(config.periodo.inicio) }} — {{ formatDate(config.periodo.fim) }}
+        {{ formatDate(config.dataInicio) }} — {{ formatDate(config.dataFim) }}
       </div>
     </div>
 
@@ -23,19 +23,19 @@
     <div class="preview-cards">
       <div class="preview-card">
         <span class="pc-label">Total de Ocorrências</span>
-        <span class="pc-valor">{{ resumo.totalCrimes }}</span>
+        <span class="pc-valor">{{ estatisticas.total }}</span>
       </div>
       <div class="preview-card">
         <span class="pc-label">Média Diária</span>
-        <span class="pc-valor">{{ resumo.mediaDiaria }}</span>
+        <span class="pc-valor">{{ estatisticas.mediaDiaria }}</span>
       </div>
       <div class="preview-card">
         <span class="pc-label">Bairro Crítico</span>
-        <span class="pc-valor small">{{ resumo.bairroMaisPerigoso }}</span>
+        <span class="pc-valor small">{{ estatisticas.bairroMaisPerigoso }}</span>
       </div>
       <div class="preview-card">
         <span class="pc-label">Horário de Pico</span>
-        <span class="pc-valor small">{{ resumo.horarioPico }}</span>
+        <span class="pc-valor small">{{ estatisticas.horarioPico }}</span>
       </div>
     </div>
 
@@ -43,15 +43,15 @@
     <div class="preview-section">
       <h3 class="section-titulo">Distribuição por Tipo de Crime</h3>
       <div class="tipo-bars">
-        <div v-for="t in resumo.porTipo" :key="t.tipo" class="tipo-bar-row">
+        <div v-for="t in estatisticas.topNaturezas" :key="t.natureza" class="tipo-bar-row">
           <span class="tipo-bar-label">
             <span class="tipo-dot" :style="{ background: t.cor }"></span>
             {{ t.label }}
           </span>
           <div class="tipo-bar-track">
-            <div class="tipo-bar-fill" :style="{ width: t.percentual + '%', background: t.cor }"></div>
+            <div class="tipo-bar-fill" :style="{ width: t.pct + '%', background: t.cor }"></div>
           </div>
-          <span class="tipo-bar-value">{{ t.total }} ({{ t.percentual }}%)</span>
+          <span class="tipo-bar-value">{{ t.qtd }} ({{ t.pct }}%)</span>
         </div>
       </div>
     </div>
@@ -69,26 +69,14 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(b, i) in resumo.porBairro" :key="b.bairro">
+          <tr v-for="(b, i) in estatisticas.topBairros" :key="b.bairro">
             <td>{{ i + 1 }}</td>
             <td>{{ b.bairro }}</td>
-            <td>{{ b.total }}</td>
-            <td>{{ b.percentual }}%</td>
+            <td>{{ b.qtd }}</td>
+            <td>{{ estatisticas.total > 0 ? Math.round((b.qtd / estatisticas.total) * 100) : 0 }}%</td>
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <!-- Status -->
-    <div class="preview-section">
-      <h3 class="section-titulo">Status das Ocorrências</h3>
-      <div class="status-row">
-        <div v-for="s in resumo.porStatus" :key="s.status" class="status-item">
-          <span class="status-dot" :style="{ background: s.cor }"></span>
-          <span class="status-label">{{ s.label }}</span>
-          <span class="status-count">{{ s.total }}</span>
-        </div>
-      </div>
     </div>
 
     <!-- Footer -->
@@ -100,11 +88,11 @@
 </template>
 
 <script setup lang="ts">
-import type { RelatorioConfig, RelatorioResumo } from '../types/relatorio'
+import type { RelatorioConfig, RelatorioEstatisticas } from '../types/relatorio'
 
 defineProps<{
   config: RelatorioConfig
-  resumo: RelatorioResumo
+  estatisticas: RelatorioEstatisticas
 }>()
 
 function formatDate(dateStr: string): string {
@@ -295,36 +283,6 @@ function formatDate(dateStr: string): string {
   font-size: 0.8125rem;
   color: #e2e8f0;
   border-bottom: 1px solid rgba(51, 65, 85, 0.5);
-}
-
-/* Status */
-.status-row {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.status-label {
-  font-size: 0.8125rem;
-  color: #94a3b8;
-}
-
-.status-count {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #e2e8f0;
 }
 
 /* Footer */

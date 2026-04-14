@@ -8,7 +8,8 @@
         <div class="stat-content">
           <p class="stat-label">{{ stat.label }}</p>
           <h3 class="stat-value">
-            <AnimatedNumber :valor="stat.rawValue" />{{ stat.suffix }}
+            <AnimatedNumber v-if="typeof stat.rawValue === 'number'" :valor="stat.rawValue" />
+            <template v-else>{{ stat.rawValue }}</template>
           </h3>
           <div class="stat-change" :class="stat.changeType">
             <i :class="stat.changeIcon"></i>
@@ -24,59 +25,61 @@
 import { computed } from 'vue'
 import BaseCard from '@/shared/components/BaseCard.vue'
 import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
-import type { DashboardStats } from '../types/dashboard'
 
-interface Props {
-  stats: DashboardStats
-}
-
-const props = defineProps<Props>()
+const props = defineProps<{
+  total: number
+  tipoMaisFrequente: { nome: string; total: number } | null
+  faixaPico: { label: string; total: number }
+  categoriaTop: { nome: string; total: number } | null
+}>()
 
 const statsData = computed(() => [
   {
     id: '1',
-    label: 'Total de Crimes',
-    rawValue: props.stats.totalCrimes,
-    suffix: '',
-    change: `${props.stats.changePercent.totalCrimes > 0 ? '+' : ''}${props.stats.changePercent.totalCrimes}% vs mês anterior`,
-    changeType: props.stats.changePercent.totalCrimes > 0 ? 'negative' : 'positive',
-    changeIcon: props.stats.changePercent.totalCrimes > 0 ? 'mdi mdi-arrow-up' : 'mdi mdi-arrow-down',
+    label: 'Total de Ocorrencias',
+    rawValue: props.total,
+    change: 'volume total no periodo',
+    changeType: 'neutral',
+    changeIcon: 'mdi mdi-chart-bar',
     icon: 'mdi mdi-alert-circle',
-    color: '#ef4444'
+    color: '#ef4444',
   },
   {
     id: '2',
-    label: 'Casos Solucionados',
-    rawValue: props.stats.solvedCases,
-    suffix: '',
-    change: `+${props.stats.changePercent.solvedCases}% vs mês anterior`,
-    changeType: 'positive',
-    changeIcon: 'mdi mdi-arrow-up',
-    icon: 'mdi mdi-check-circle',
-    color: '#22c55e'
+    label: 'Tipo Mais Frequente',
+    rawValue: props.tipoMaisFrequente?.nome || 'N/A',
+    change: props.tipoMaisFrequente
+      ? `${props.tipoMaisFrequente.total} registros`
+      : 'sem dados',
+    changeType: 'neutral',
+    changeIcon: 'mdi mdi-shield-alert',
+    icon: 'mdi mdi-shield-alert',
+    color: '#f59e0b',
   },
   {
     id: '3',
-    label: 'Em Investigação',
-    rawValue: props.stats.investigating,
-    suffix: '',
-    change: props.stats.changePercent.investigating === 0 ? 'Sem alteração' : `${props.stats.changePercent.investigating}%`,
+    label: 'Horario de Pico',
+    rawValue: props.faixaPico.label,
+    change: props.faixaPico.total > 0
+      ? `${props.faixaPico.total} registros`
+      : 'sem dados',
     changeType: 'neutral',
-    changeIcon: 'mdi mdi-minus',
+    changeIcon: 'mdi mdi-clock-outline',
     icon: 'mdi mdi-clock-outline',
-    color: '#f59e0b'
+    color: '#8b5cf6',
   },
   {
     id: '4',
-    label: 'Taxa de Resolução',
-    rawValue: props.stats.resolutionRate,
-    suffix: '%',
-    change: `+${props.stats.changePercent.resolutionRate}% vs mês anterior`,
-    changeType: 'positive',
-    changeIcon: 'mdi mdi-arrow-up',
-    icon: 'mdi mdi-chart-line',
-    color: '#3b82f6'
-  }
+    label: 'Categoria Top',
+    rawValue: props.categoriaTop?.nome || 'N/A',
+    change: props.categoriaTop
+      ? `${props.categoriaTop.total} registros`
+      : 'sem dados',
+    changeType: 'neutral',
+    changeIcon: 'mdi mdi-format-list-bulleted-square',
+    icon: 'mdi mdi-format-list-bulleted-square',
+    color: '#3b82f6',
+  },
 ])
 </script>
 
@@ -109,6 +112,7 @@ const statsData = computed(() => [
 
 .stat-content {
   flex: 1;
+  min-width: 0;
 }
 
 .stat-label {
@@ -123,6 +127,9 @@ const statsData = computed(() => [
   font-size: 2rem;
   font-weight: 700;
   color: white;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stat-change {
@@ -131,14 +138,6 @@ const statsData = computed(() => [
   gap: 0.25rem;
   font-size: 0.75rem;
   font-weight: 500;
-}
-
-.stat-change.positive {
-  color: #22c55e;
-}
-
-.stat-change.negative {
-  color: #ef4444;
 }
 
 .stat-change.neutral {

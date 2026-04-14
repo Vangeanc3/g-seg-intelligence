@@ -5,24 +5,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import mapboxgl from 'mapbox-gl'
-import { CRIME_CORES } from '../types/crime'
 import { createMask } from '../utils/maskHelper'
+import {
+  CRIME_CORES,
+  formatarDataCrime,
+  labelNatureza,
+  type CrimeFeature,
+  type CrimesGeoJson,
+  type CrimeProperties,
+  type VisualizacaoMapa,
+} from '../types/crime'
+import {
+  RISCO_CORES,
+  RISCO_LABELS,
+  type BairrosPoligonosGeoJson,
+  type NivelRisco,
+} from '../services/riscoService'
+
+const TERRA_FIRME_CENTER: [number, number] = [-48.4513, -1.456]
+const DEFAULT_ZOOM = 15
 
 interface Props {
-  geojson: unknown
-  visualizacao: 'pontos' | 'heatmap' | 'clusters'
+  geojson: CrimesGeoJson
+  bairrosPoligonos: BairrosPoligonosGeoJson
+  visualizacao: VisualizacaoMapa
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  crimeClick: [properties: Record<string, unknown>]
+  crimeClick: [crime: CrimeFeature]
 }>()
 
 const mapContainer = ref<HTMLDivElement>()
 let map: mapboxgl.Map | null = null
 let searchMarker: mapboxgl.Marker | null = null
+let hoveredBairroId: number | null = null
 
 function initMap() {
   if (!mapContainer.value) return
@@ -32,13 +51,13 @@ function initMap() {
   map = new mapboxgl.Map({
     container: mapContainer.value,
     style: 'mapbox://styles/mapbox/dark-v11',
-    center: [-48.4902, -1.4558],
-    zoom: 13,
+    center: TERRA_FIRME_CENTER,
+    zoom: DEFAULT_ZOOM,
     minZoom: 10,
     maxZoom: 18,
     maxBounds: [
-      [-48.65, -1.55],  // Sudoeste (cobre Belém + margem)
-      [-48.30, -1.10],  // Nordeste (cobre ilhas de Belém)
+      [-48.65, -1.55],
+      [-48.3, -1.1],
     ],
   })
 
@@ -47,9 +66,10 @@ function initMap() {
 
   map.on('load', async () => {
     await addBelemBoundary()
-    addSource()
+    addSources()
     addLayers()
-    setupClickEvents()
+    setupEvents()
+    atualizarVisualizacao(props.visualizacao)
   })
 }
 
@@ -61,10 +81,9 @@ async function addBelemBoundary() {
     const belemData: GeoJSON.FeatureCollection = await response.json()
     const mask = createMask(belemData)
 
-    // Source e Layer: Máscara (escurece fora de Belém)
     map.addSource('belem-mask', {
       type: 'geojson',
-      data: mask
+      data: mask,
     })
 
     map.addLayer({
@@ -77,10 +96,9 @@ async function addBelemBoundary() {
       },
     })
 
-    // Source e Layer: Contorno de Belém (borda azul)
     map.addSource('belem-boundary', {
       type: 'geojson',
-      data: belemData
+      data: belemData,
     })
 
     map.addLayer({
@@ -94,28 +112,32 @@ async function addBelemBoundary() {
       },
     })
   } catch (error) {
-    console.error('Erro ao carregar boundary de Belém:', error)
+    console.error('Erro ao carregar boundary de Belem:', error)
   }
 }
 
-function addSource() {
+function addSources() {
   if (!map) return
 
   map.addSource('crimes', {
     type: 'geojson',
-    data: props.geojson as mapboxgl.GeoJSONSourceSpecification['data'],
+    data: props.geojson,
     cluster: true,
     clusterMaxZoom: 14,
     clusterRadius: 50,
+  })
+
+  map.addSource('bairros-poligonos', {
+    type: 'geojson',
+    data: normalizarBairrosPoligonos(props.bairrosPoligonos),
   })
 }
 
 function addLayers() {
   if (!map) return
 
-  // Layer: Pontos individuais (não clusterizados)
   map.addLayer({
-    id: 'crime-points',
+    id: 'unclustered-point',
     type: 'circle',
     source: 'crimes',
     filter: ['!', ['has', 'point_count']],
@@ -123,23 +145,36 @@ function addLayers() {
       'circle-radius': 6,
       'circle-color': [
         'match',
-        ['get', 'tipo'],
-        'roubo', CRIME_CORES.roubo,
-        'furto', CRIME_CORES.furto,
-        'homicidio', CRIME_CORES.homicidio,
-        'trafico', CRIME_CORES.trafico,
-        'agressao', CRIME_CORES.agressao,
-        CRIME_CORES.outro,
+        ['coalesce', ['get', 'natureza'], ''],
+        'FURTO',
+        CRIME_CORES.FURTO,
+        'ROUBO',
+        CRIME_CORES.ROUBO,
+        'LESAO CORPORAL',
+        CRIME_CORES['LESAO CORPORAL'],
+        'TRAFICO DE DROGAS',
+        CRIME_CORES['TRAFICO DE DROGAS'],
+        'ESTUPRO DE VULNERAVEL',
+        CRIME_CORES['ESTUPRO DE VULNERAVEL'],
+        'HOMICIDIO',
+        CRIME_CORES.HOMICIDIO,
+        'MORTE NO TRANSITO',
+        CRIME_CORES['MORTE NO TRANSITO'],
+        'ESTUPRO',
+        CRIME_CORES.ESTUPRO,
+        '#64748b',
       ],
       'circle-stroke-width': 1,
       'circle-stroke-color': '#ffffff',
       'circle-opacity': 0.85,
     },
+    layout: {
+      visibility: 'none',
+    },
   })
 
-  // Layer: Clusters
   map.addLayer({
-    id: 'crime-clusters',
+    id: 'clusters',
     type: 'circle',
     source: 'crimes',
     filter: ['has', 'point_count'],
@@ -148,23 +183,29 @@ function addLayers() {
         'step',
         ['get', 'point_count'],
         '#3b82f6',
-        10, '#f59e0b',
-        50, '#ef4444',
+        10,
+        '#f59e0b',
+        50,
+        '#ef4444',
       ],
       'circle-radius': [
         'step',
         ['get', 'point_count'],
         20,
-        10, 30,
-        50, 40,
+        10,
+        30,
+        50,
+        40,
       ],
       'circle-opacity': 0.75,
     },
+    layout: {
+      visibility: 'none',
+    },
   })
 
-  // Layer: Texto do cluster (número)
   map.addLayer({
-    id: 'crime-cluster-count',
+    id: 'cluster-count',
     type: 'symbol',
     source: 'crimes',
     filter: ['has', 'point_count'],
@@ -172,149 +213,405 @@ function addLayers() {
       'text-field': '{point_count_abbreviated}',
       'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
       'text-size': 14,
+      visibility: 'none',
     },
     paint: {
       'text-color': '#ffffff',
     },
   })
 
-  // Layer: Heatmap (começa invisível)
   map.addLayer({
-    id: 'crime-heat',
-    type: 'heatmap',
-    source: 'crimes',
+    id: 'bairros-fill',
+    type: 'fill',
+    source: 'bairros-poligonos',
     paint: {
-      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 10, 1, 18, 3],
-      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 15, 18, 30],
-      'heatmap-color': [
-        'interpolate',
-        ['linear'],
-        ['heatmap-density'],
-        0, 'rgba(0,0,255,0)',
-        0.2, 'rgb(0,255,128)',
-        0.4, 'rgb(255,255,0)',
-        0.6, 'rgb(255,165,0)',
-        1, 'rgb(255,0,0)',
+      'fill-color': [
+        'match',
+        ['get', 'nivelRisco'],
+        'Seguro',
+        RISCO_CORES.Seguro,
+        'Baixo',
+        RISCO_CORES.Baixo,
+        'Medio',
+        RISCO_CORES.Medio,
+        'Alto',
+        RISCO_CORES.Alto,
+        'Critico',
+        RISCO_CORES.Critico,
+        '#64748b',
       ],
-      'heatmap-opacity': 0.7,
+      'fill-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        0.75,
+        0.55,
+      ],
     },
+    layout: { visibility: 'none' },
+  })
+
+  map.addLayer({
+    id: 'bairros-line',
+    type: 'line',
+    source: 'bairros-poligonos',
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        2.5,
+        1,
+      ],
+      'line-opacity': 0.7,
+    },
+    layout: { visibility: 'none' },
+  })
+
+  map.addLayer({
+    id: 'bairros-labels',
+    type: 'symbol',
+    source: 'bairros-poligonos',
     layout: {
+      'text-field': ['get', 'nomeDisplay'],
+      'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+      'text-size': 12,
+      'text-anchor': 'center',
+      'symbol-placement': 'point',
       visibility: 'none',
+    },
+    paint: {
+      'text-color': '#ffffff',
+      'text-halo-color': '#000000',
+      'text-halo-width': 1.5,
     },
   })
 }
 
-function setupClickEvents() {
+function normalizarTexto(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function normalizarNumero(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const numero = Number(value)
+    return Number.isFinite(numero) ? numero : null
+  }
+
+  return null
+}
+
+function normalizarNivelRisco(value: unknown): NivelRisco | null {
+  const texto = normalizarTexto(value)
+
+  if (
+    texto === 'Seguro' ||
+    texto === 'Baixo' ||
+    texto === 'Medio' ||
+    texto === 'Alto' ||
+    texto === 'Critico'
+  ) {
+    return texto
+  }
+
+  return null
+}
+
+function normalizarFeatureId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const numero = Number(value)
+    return Number.isFinite(numero) ? numero : null
+  }
+
+  return null
+}
+
+function normalizarBairrosPoligonos(
+  data: BairrosPoligonosGeoJson,
+): BairrosPoligonosGeoJson {
+  return {
+    ...data,
+    features: data.features.map((feature) => ({
+      ...feature,
+      id: feature.properties.id,
+    })),
+  }
+}
+
+function corDoRisco(nivel: string): string {
+  const nivelNormalizado = normalizarNivelRisco(nivel)
+  return nivelNormalizado ? RISCO_CORES[nivelNormalizado] : '#64748b'
+}
+
+function limparHoverBairro() {
+  if (!map || hoveredBairroId === null) return
+
+  map.setFeatureState(
+    { source: 'bairros-poligonos', id: hoveredBairroId },
+    { hover: false },
+  )
+  hoveredBairroId = null
+}
+
+function extrairCrime(feature: mapboxgl.GeoJSONFeature): CrimeFeature | null {
+  if (feature.geometry.type !== 'Point' || !feature.properties) {
+    return null
+  }
+
+  const properties = feature.properties as Record<string, unknown>
+  const coordinates = feature.geometry.coordinates
+
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [Number(coordinates[0]), Number(coordinates[1])],
+    },
+    properties: {
+      natureza: normalizarTexto(properties.natureza) || '',
+      categoria: normalizarTexto(properties.categoria) || '',
+      dataFato: normalizarTexto(properties.dataFato) || '',
+      horaFato: normalizarTexto(properties.horaFato),
+      bairro: normalizarTexto(properties.bairro) || '',
+      meioEmpregado: normalizarTexto(properties.meioEmpregado),
+      sexoVitima: normalizarTexto(properties.sexoVitima),
+      idadeVitima: normalizarNumero(properties.idadeVitima),
+    },
+  }
+}
+
+function criarPopupHtml(properties: CrimeProperties): string {
+  return `
+    <div style="color: #e2e8f0; padding: 4px;">
+      <strong style="font-size: 14px;">${labelNatureza(properties.natureza)}</strong>
+      <p style="margin: 4px 0; font-size: 12px; color: #94a3b8;">${properties.categoria}</p>
+      <p style="margin: 4px 0; font-size: 12px; color: #94a3b8;">${properties.bairro}</p>
+      <p style="margin: 4px 0; font-size: 11px; color: #64748b;">
+        ${formatarDataCrime(properties.dataFato)}${properties.horaFato ? ` - ${properties.horaFato}` : ''}
+      </p>
+    </div>
+  `
+}
+
+function criarPopupHtmlBairro(properties: Record<string, unknown>): string {
+  const nomeDisplay =
+    normalizarTexto(properties.nomeDisplay) ||
+    normalizarTexto(properties.nome) ||
+    'Bairro'
+  const nivelRisco = normalizarNivelRisco(properties.nivelRisco)
+  const totalCrimes = normalizarNumero(properties.totalCrimes) ?? 0
+  const populacao = normalizarNumero(properties.populacao)
+  const labelNivel = nivelRisco ? RISCO_LABELS[nivelRisco] : 'Indefinido'
+
+  return `
+    <div style="padding: 4px; color: #e2e8f0;">
+      <strong style="font-size: 14px; display: block; margin-bottom: 4px;">${nomeDisplay}</strong>
+      <div style="font-size: 12px; color: #94a3b8; display: flex; flex-direction: column; gap: 2px;">
+        <span>Nivel: <strong style="color: ${corDoRisco(labelNivel)};">${labelNivel}</strong></span>
+        <span>Total de crimes: <strong style="color: #e2e8f0;">${totalCrimes.toLocaleString('pt-BR')}</strong></span>
+        ${populacao !== null ? `<span>Populacao: <strong style="color: #e2e8f0;">${populacao.toLocaleString('pt-BR')}</strong></span>` : ''}
+      </div>
+    </div>
+  `
+}
+
+function setupEvents() {
   if (!map) return
 
-  // Click no ponto individual
-  map.on('click', 'crime-points', (e) => {
-    if (e.features && e.features[0]) {
-      const properties = e.features[0].properties
-      if (properties) {
-        emit('crimeClick', properties as Record<string, unknown>)
+  map.on('click', 'unclustered-point', (event) => {
+    const feature = event.features?.[0]
+    if (!feature) return
 
-        const coords = (e.features[0].geometry as GeoJSON.Point).coordinates as [number, number]
-        new mapboxgl.Popup({ className: 'crime-popup', maxWidth: '300px' })
-          .setLngLat(coords)
-          .setHTML(`
-            <div style="color: #e2e8f0; padding: 4px;">
-              <strong style="font-size: 14px; text-transform: capitalize;">${properties.tipo}</strong>
-              <p style="margin: 4px 0; font-size: 12px; color: #94a3b8;">${properties.endereco}</p>
-              <p style="margin: 4px 0; font-size: 12px; color: #94a3b8;">${properties.bairro}</p>
-              <p style="margin: 4px 0; font-size: 11px; color: #64748b;">${new Date(properties.data as string).toLocaleDateString('pt-BR')}</p>
-              <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: ${
-                properties.status === 'solucionado' ? '#22c55e20' : properties.status === 'em_investigacao' ? '#f59e0b20' : '#ef444420'
-              }; color: ${
-                properties.status === 'solucionado' ? '#22c55e' : properties.status === 'em_investigacao' ? '#f59e0b' : '#ef4444'
-              };">${String(properties.status).replace('_', ' ')}</span>
-            </div>
-          `)
-          .addTo(map!)
-      }
-    }
+    const crime = extrairCrime(feature)
+    if (!crime) return
+
+    emit('crimeClick', crime)
+
+    new mapboxgl.Popup({ className: 'crime-popup', maxWidth: '300px' })
+      .setLngLat(crime.geometry.coordinates as [number, number])
+      .setHTML(criarPopupHtml(crime.properties))
+      .addTo(map!)
   })
 
-  // Click no cluster → zoom
-  map.on('click', 'crime-clusters', (e) => {
-    const features = map!.queryRenderedFeatures(e.point, { layers: ['crime-clusters'] })
-    if (!features.length || !features[0]) return
-    const clusterId = features[0].properties?.cluster_id
+  map.on('click', 'clusters', (event) => {
+    const features = map!.queryRenderedFeatures(event.point, {
+      layers: ['clusters'],
+    })
+
+    const feature = features[0]
+    if (!feature) return
+
+    const clusterId = feature.properties?.cluster_id
+    if (typeof clusterId !== 'number') return
+
     const source = map!.getSource('crimes') as mapboxgl.GeoJSONSource
-    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-      if (err || !zoom || !features[0]?.geometry) return
+
+    source.getClusterExpansionZoom(clusterId, (error, zoom) => {
+      if (error || !zoom || feature.geometry.type !== 'Point') return
+
       map!.easeTo({
-        center: (features[0].geometry as GeoJSON.Point).coordinates as [number, number],
+        center: feature.geometry.coordinates as [number, number],
         zoom,
       })
     })
   })
 
-  // Cursor pointer ao passar nos pontos/clusters
-  map.on('mouseenter', 'crime-points', () => { map!.getCanvas().style.cursor = 'pointer' })
-  map.on('mouseleave', 'crime-points', () => { map!.getCanvas().style.cursor = '' })
-  map.on('mouseenter', 'crime-clusters', () => { map!.getCanvas().style.cursor = 'pointer' })
-  map.on('mouseleave', 'crime-clusters', () => { map!.getCanvas().style.cursor = '' })
+  map.on('mouseenter', 'unclustered-point', () => {
+    map!.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', 'unclustered-point', () => {
+    map!.getCanvas().style.cursor = ''
+  })
+  map.on('mouseenter', 'clusters', () => {
+    map!.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', 'clusters', () => {
+    map!.getCanvas().style.cursor = ''
+  })
+
+  map.on('mousemove', 'bairros-fill', (event) => {
+    const feature = event.features?.[0]
+    if (!feature) return
+
+    const featureId = normalizarFeatureId(feature.id)
+    if (featureId === null) return
+
+    if (hoveredBairroId !== null && hoveredBairroId !== featureId) {
+      map!.setFeatureState(
+        { source: 'bairros-poligonos', id: hoveredBairroId },
+        { hover: false },
+      )
+    }
+
+    hoveredBairroId = featureId
+    map!.setFeatureState(
+      { source: 'bairros-poligonos', id: hoveredBairroId },
+      { hover: true },
+    )
+    map!.getCanvas().style.cursor = 'pointer'
+  })
+
+  map.on('mouseleave', 'bairros-fill', () => {
+    limparHoverBairro()
+    map!.getCanvas().style.cursor = ''
+  })
+
+  map.on('click', 'bairros-fill', (event) => {
+    const feature = event.features?.[0]
+    if (!feature || !feature.properties) return
+
+    new mapboxgl.Popup({ closeButton: true, maxWidth: '280px' })
+      .setLngLat(event.lngLat)
+      .setHTML(criarPopupHtmlBairro(feature.properties as Record<string, unknown>))
+      .addTo(map!)
+  })
 }
 
-function atualizarVisualizacao(modo: string) {
+function atualizarVisualizacao(modo: VisualizacaoMapa) {
   if (!map || !map.isStyleLoaded()) return
 
-  const pontos = modo === 'pontos' || modo === 'clusters'
-  const heat = modo === 'heatmap'
+  const ocorrenciasLayers = [
+    'clusters',
+    'cluster-count',
+    'unclustered-point',
+  ] as const
+  const riscoLayers = [
+    'bairros-fill',
+    'bairros-line',
+    'bairros-labels',
+  ] as const
+  const todas = [...ocorrenciasLayers, ...riscoLayers]
 
-  map.setLayoutProperty('crime-points', 'visibility', pontos ? 'visible' : 'none')
-  map.setLayoutProperty('crime-clusters', 'visibility', modo === 'clusters' ? 'visible' : 'none')
-  map.setLayoutProperty('crime-cluster-count', 'visibility', modo === 'clusters' ? 'visible' : 'none')
-  map.setLayoutProperty('crime-heat', 'visibility', heat ? 'visible' : 'none')
+  todas.forEach((layerId) => {
+    if (map!.getLayer(layerId)) {
+      map!.setLayoutProperty(layerId, 'visibility', 'none')
+    }
+  })
+
+  if (modo === 'ocorrencias') {
+    ocorrenciasLayers.forEach((layerId) => {
+      if (map!.getLayer(layerId)) {
+        map!.setLayoutProperty(layerId, 'visibility', 'visible')
+      }
+    })
+  } else if (modo === 'risco-bairros') {
+    riscoLayers.forEach((layerId) => {
+      if (map!.getLayer(layerId)) {
+        map!.setLayoutProperty(layerId, 'visibility', 'visible')
+      }
+    })
+  }
 }
 
 function irParaCoordenada(coords: { lng: number; lat: number; zoom: number }) {
   if (!map) return
 
-  // Voar até o ponto
   map.flyTo({
     center: [coords.lng, coords.lat],
     zoom: coords.zoom,
     duration: 1500,
   })
 
-  // Remover marker anterior
   if (searchMarker) {
     searchMarker.remove()
   }
 
-  // Criar novo marker
   searchMarker = new mapboxgl.Marker({ color: '#3b82f6' })
     .setLngLat([coords.lng, coords.lat])
     .addTo(map)
 
-  // Remover marker após 10s
   setTimeout(() => {
     searchMarker?.remove()
     searchMarker = null
   }, 10000)
 }
 
-// Expor método para componente pai
 defineExpose({ irParaCoordenada })
 
-// Watchers
-watch(() => props.geojson, (newData) => {
-  if (!map) return
-  const source = map.getSource('crimes') as mapboxgl.GeoJSONSource
-  if (source) {
-    source.setData(newData as GeoJSON.FeatureCollection)
-  }
-}, { deep: true })
+watch(
+  () => props.geojson,
+  (newData) => {
+    if (!map) return
 
-watch(() => props.visualizacao, (modo) => {
-  atualizarVisualizacao(modo)
-})
+    const source = map.getSource('crimes') as mapboxgl.GeoJSONSource | undefined
+    source?.setData(newData)
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.bairrosPoligonos,
+  (newData) => {
+    if (!map) return
+
+    limparHoverBairro()
+
+    const source = map.getSource('bairros-poligonos') as
+      | mapboxgl.GeoJSONSource
+      | undefined
+    source?.setData(normalizarBairrosPoligonos(newData))
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.visualizacao,
+  (modo) => {
+    atualizarVisualizacao(modo)
+  },
+)
 
 onMounted(() => initMap())
 onUnmounted(() => {
   if (map) {
+    limparHoverBairro()
     map.remove()
     map = null
   }

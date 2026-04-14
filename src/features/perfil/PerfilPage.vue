@@ -17,6 +17,7 @@
       :usuario="usuario"
       :plano-label="planoLabel"
       :salvando="salvando"
+      @update:usuario="atualizarUsuario"
       @salvar="salvarPerfil"
     />
 
@@ -28,6 +29,7 @@
 </template>
 
 <script setup lang="ts">
+import type { Usuario } from './types/perfil'
 import PerfilHeader from './components/PerfilHeader.vue'
 import PerfilInfoForm from './components/PerfilInfoForm.vue'
 import PerfilSeguranca from './components/PerfilSeguranca.vue'
@@ -43,6 +45,10 @@ const {
   salvarPerfil,
   alterarSenha,
 } = usePerfil()
+
+function atualizarUsuario(novoUsuario: Usuario) {
+  usuario.value = novoUsuario
+}
 </script>
 
 <style scoped>

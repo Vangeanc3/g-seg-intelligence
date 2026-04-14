@@ -1,25 +1,21 @@
 <template>
   <div class="filtros">
-    <h3>Filtros</h3>
+    <div class="filtros-header">
+      <h3>Filtros</h3>
+      <div v-if="carregando" class="filtros-status">
+        <LoadingSpinner size="sm" text="Atualizando..." />
+      </div>
+    </div>
 
-    <!-- Skeleton enquanto carrega -->
-    <template v-if="carregando">
-      <SkeletonLoader tipo="texto" :linhas="3" />
-      <SkeletonLoader tipo="texto" :linhas="5" />
-      <SkeletonLoader tipo="texto" :linhas="2" />
-      <SkeletonLoader tipo="texto" :linhas="4" />
-    </template>
-
-    <template v-else>
-
-    <!-- Visualização -->
     <div class="filtro-grupo">
-      <label>Visualização</label>
+      <label>Visualizacao</label>
       <div class="btn-group">
         <button
           v-for="opt in visualizacaoOpts"
           :key="opt.value"
+          type="button"
           :class="['btn-vis', { active: visualizacao === opt.value }]"
+          :disabled="carregando"
           @click="$emit('update:visualizacao', opt.value)"
         >
           <i :class="opt.icon"></i>
@@ -28,15 +24,16 @@
       </div>
     </div>
 
-    <!-- Tipos de crime -->
     <div class="filtro-grupo">
-      <label>Tipo de Crime</label>
+      <label>Natureza</label>
       <div class="tipo-list">
         <button
-          v-for="tipo in tiposCrime"
+          v-for="tipo in tiposOrdenados"
           :key="tipo.value"
-          :class="['btn-tipo', { active: tiposSelecionados.includes(tipo.value) }]"
-          @click="$emit('toggleTipo', tipo.value)"
+          type="button"
+          :class="['btn-tipo', { active: naturezaSelecionada === tipo.value }]"
+          :disabled="carregando"
+          @click="$emit('update:natureza', naturezaSelecionada === tipo.value ? '' : tipo.value)"
         >
           <span class="tipo-cor" :style="{ background: tipo.cor }"></span>
           {{ tipo.label }}
@@ -45,26 +42,30 @@
       </div>
     </div>
 
-    <!-- Bairros -->
     <div class="filtro-grupo">
       <label>Bairro</label>
       <select
         class="select-bairro"
-        @change="$emit('filtrarBairro', ($event.target as HTMLSelectElement).value)"
+        :value="bairroSelecionado"
+        :disabled="carregando"
+        @change="$emit('update:bairro', ($event.target as HTMLSelectElement).value)"
       >
         <option value="">Todos os bairros</option>
-        <option v-for="b in bairros" :key="b" :value="b">{{ b }}</option>
+        <option v-for="bairro in bairros" :key="bairro" :value="bairro">
+          {{ bairro }}
+        </option>
       </select>
     </div>
 
-    <!-- Período -->
     <div class="filtro-grupo">
-      <label>Período</label>
+      <label>Periodo</label>
       <div class="periodo-grid">
         <button
           v-for="opt in periodoOpts"
           :key="opt.value"
+          type="button"
           :class="['btn-periodo', { active: periodoAtivo === opt.value }]"
+          :disabled="carregando"
           @click="selecionarPeriodo(opt.value)"
         >
           {{ opt.label }}
@@ -75,30 +76,30 @@
           type="date"
           class="input-date"
           :value="dataInicio"
+          :disabled="carregando"
           @input="$emit('update:dataInicio', ($event.target as HTMLInputElement).value)"
         />
         <input
           type="date"
           class="input-date"
           :value="dataFim"
+          :disabled="carregando"
           @input="$emit('update:dataFim', ($event.target as HTMLInputElement).value)"
         />
       </div>
     </div>
 
-    <!-- Estatísticas -->
     <div class="stats-mini">
       <div class="stat">
         <span class="stat-num"><AnimatedNumber :valor="total" :duracao="500" /></span>
-        <span class="stat-label">ocorrências</span>
+        <span class="stat-label">ocorrencias</span>
       </div>
     </div>
 
-    <!-- Empty state -->
     <EmptyState
-      v-if="total === 0"
-      titulo="Nenhuma ocorrência encontrada"
-      descricao="Tente ajustar os filtros de período, tipo ou bairro para ver resultados."
+      v-if="!carregando && total === 0"
+      titulo="Nenhuma ocorrencia encontrada"
+      descricao="Tente ajustar os filtros de periodo, natureza ou bairro para ver resultados."
       icone="mdi mdi-map-marker-off"
       cor="#f59e0b"
     >
@@ -110,52 +111,54 @@
       </template>
     </EmptyState>
 
-    <!-- Limpar -->
-    <button class="btn-limpar" @click="$emit('limpar')">
+    <button class="btn-limpar" type="button" :disabled="carregando" @click="$emit('limpar')">
       <i class="mdi mdi-filter-remove"></i>
       Limpar filtros
     </button>
-
-    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { TipoCrime } from '../types/crime'
-import { CRIME_CORES, CRIME_LABELS } from '../types/crime'
-import { useLoading } from '@/shared/composables/useLoading'
-import SkeletonLoader from '@/shared/components/SkeletonLoader.vue'
 import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 import EmptyState from '@/shared/components/EmptyState.vue'
+import LoadingSpinner from '@/shared/components/LoadingSpinner.vue'
+import { CRIME_CORES, CRIME_LABELS, type VisualizacaoMapa } from '../types/crime'
 
 interface Props {
-  visualizacao: string
-  tiposSelecionados: TipoCrime[]
+  visualizacao: VisualizacaoMapa
+  naturezaSelecionada: string
+  bairroSelecionado: string
   bairros: string[]
   total: number
-  estatisticas: { porTipo: [string, number][] }
+  tiposCrime: Record<string, number>
   dataInicio: string
   dataFim: string
+  carregando: boolean
 }
 
 const props = defineProps<Props>()
 
-const { carregando } = useLoading(600)
-
 const emit = defineEmits<{
-  'update:visualizacao': [value: string]
+  'update:visualizacao': [value: VisualizacaoMapa]
+  'update:natureza': [value: string]
+  'update:bairro': [value: string]
   'update:dataInicio': [value: string]
   'update:dataFim': [value: string]
-  toggleTipo: [tipo: TipoCrime]
-  filtrarBairro: [bairro: string]
   limpar: []
 }>()
 
-const visualizacaoOpts = [
-  { value: 'pontos', label: 'Pontos', icon: 'mdi mdi-map-marker' },
-  { value: 'heatmap', label: 'Calor', icon: 'mdi mdi-fire' },
-  { value: 'clusters', label: 'Clusters', icon: 'mdi mdi-circle-multiple' },
+const visualizacaoOpts: Array<{
+  value: VisualizacaoMapa
+  label: string
+  icon: string
+}> = [
+  {
+    value: 'ocorrencias',
+    label: 'Ocorrencias',
+    icon: 'mdi mdi-map-marker-multiple',
+  },
+  { value: 'risco-bairros', label: 'Risco', icon: 'mdi mdi-shield-alert' },
 ]
 
 const periodoOpts = [
@@ -165,13 +168,13 @@ const periodoOpts = [
   { value: 'all', label: 'Todos' },
 ]
 
-const tiposCrime = computed(() =>
+const tiposOrdenados = computed(() =>
   Object.entries(CRIME_LABELS).map(([value, label]) => ({
-    value: value as TipoCrime,
+    value,
     label,
-    cor: CRIME_CORES[value as TipoCrime],
-    count: props.estatisticas.porTipo.find(([t]) => t === value)?.[1] || 0,
-  }))
+    cor: CRIME_CORES[value],
+    count: props.tiposCrime[value] || 0,
+  })),
 )
 
 const periodoAtivo = computed(() => {
@@ -183,7 +186,9 @@ const periodoAtivo = computed(() => {
 
   if (!inicio || !fim) return null
 
-  const diffDays = Math.ceil((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24))
+  const diffDays = Math.ceil(
+    (hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24),
+  )
 
   if (diffDays <= 7 && diffDays >= 6) return '7d'
   if (diffDays <= 30 && diffDays >= 29) return '30d'
@@ -194,7 +199,7 @@ const periodoAtivo = computed(() => {
 
 function selecionarPeriodo(periodo: string) {
   const hoje = new Date()
-  const dataFimFormatada = hoje.toISOString().split('T')[0]!
+  const dataFimFormatada = hoje.toISOString().split('T')[0] || ''
 
   if (periodo === 'all') {
     emit('update:dataInicio', '')
@@ -205,7 +210,7 @@ function selecionarPeriodo(periodo: string) {
   const dias = periodo === '7d' ? 7 : periodo === '30d' ? 30 : 90
   const dataInicio = new Date(hoje)
   dataInicio.setDate(dataInicio.getDate() - dias)
-  const dataInicioFormatada = dataInicio.toISOString().split('T')[0]!
+  const dataInicioFormatada = dataInicio.toISOString().split('T')[0] || ''
 
   emit('update:dataInicio', dataInicioFormatada)
   emit('update:dataFim', dataFimFormatada)
@@ -231,6 +236,17 @@ function selecionarPeriodo(periodo: string) {
 .filtros::-webkit-scrollbar-thumb {
   background: #475569;
   border-radius: 4px;
+}
+
+.filtros-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.filtros-status {
+  flex-shrink: 0;
 }
 
 h3 {
@@ -407,7 +423,7 @@ h3 {
   transition: all 0.2s;
 }
 
-.btn-limpar:hover {
+.btn-limpar:hover:not(:disabled) {
   border-color: #ef4444;
   color: #ef4444;
 }
@@ -430,5 +446,12 @@ h3 {
 
 .btn-limpar-filtros:hover {
   background: rgba(59, 130, 246, 0.2);
+}
+
+button:disabled,
+select:disabled,
+input:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 </style>

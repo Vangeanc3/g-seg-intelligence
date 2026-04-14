@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { authService } from '@/core/auth/authService'
 
 import MainLayout from '@/layouts/MainLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
@@ -37,6 +36,10 @@ const router = createRouter({
         ...analyticsRoutes,
         ...relatoriosRoutes,
         {
+          path: 'importacao',
+          component: () => import('@/features/importacao/ImportacaoPage.vue'),
+        },
+        {
           path: 'perfil',
           component: () => import('@/features/perfil/PerfilPage.vue'),
         },
@@ -63,12 +66,12 @@ const router = createRouter({
 
 // Guard de autenticação (executa antes de cada rota)
 router.beforeEach((to, from, next) => {
-  const requiresAuth = to.meta.requiresAuth
-  const isAuthenticated = authService.isAuthenticated()
+  const token = localStorage.getItem('g-seg-token')
+  const isAuthRoute = to.path.startsWith('/app')
 
-  if (requiresAuth && !isAuthenticated) {
+  if (isAuthRoute && !token) {
     next('/auth/login')
-  } else if (to.path.startsWith('/auth') && isAuthenticated) {
+  } else if (to.path.startsWith('/auth') && token) {
     next('/app/dashboard')
   } else {
     next()

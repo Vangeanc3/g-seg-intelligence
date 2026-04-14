@@ -1,12 +1,12 @@
 <template>
   <div class="grafico-container">
-    <h3 class="grafico-titulo">Evolução Temporal</h3>
+    <h3 class="grafico-titulo">Evolucao Mensal</h3>
     <canvas ref="chartRef"></canvas>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Chart,
   LineController,
@@ -17,15 +17,38 @@ import {
   Filler,
   Tooltip,
 } from 'chart.js'
+import type { LabelTotal } from '../services/analyticsService'
 
-Chart.register(LineController, LineElement, PointElement, CategoryScale, LinearScale, Filler, Tooltip)
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Filler,
+  Tooltip,
+)
 
 const props = defineProps<{
-  dados: { data: string; total: number }[]
+  dados: LabelTotal[]
 }>()
 
 const chartRef = ref<HTMLCanvasElement | null>(null)
 let chart: Chart | null = null
+
+function formatarMes(label: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(label)
+  if (!match) return label
+
+  const ano = Number(match[1])
+  const mes = Number(match[2]) - 1
+  const data = new Date(ano, mes, 1)
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'short',
+    year: '2-digit',
+  }).format(data)
+}
 
 function renderChart() {
   if (!chartRef.value) return
@@ -34,18 +57,20 @@ function renderChart() {
   chart = new Chart(chartRef.value, {
     type: 'line',
     data: {
-      labels: props.dados.map(d => d.data),
-      datasets: [{
-        data: props.dados.map(d => d.total),
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        pointBackgroundColor: '#3b82f6',
-        borderWidth: 2,
-      }],
+      labels: props.dados.map((item) => formatarMes(item.label)),
+      datasets: [
+        {
+          data: props.dados.map((item) => item.total),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#3b82f6',
+          borderWidth: 2,
+        },
+      ],
     },
     options: {
       responsive: true,
@@ -65,7 +90,7 @@ function renderChart() {
       scales: {
         x: {
           grid: { color: '#1e293b' },
-          ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 },
+          ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0 },
         },
         y: {
           grid: { color: '#1e293b' },

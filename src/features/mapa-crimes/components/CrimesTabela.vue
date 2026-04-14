@@ -1,6 +1,5 @@
 <template>
   <div class="tabela-crimes-container">
-    <!-- Barra de busca e info -->
     <div class="tabela-toolbar">
       <div class="toolbar-busca">
         <i class="mdi mdi-magnify"></i>
@@ -8,18 +7,15 @@
           v-model="busca"
           type="text"
           class="busca-input"
-          placeholder="Buscar por endereço, bairro, tipo..."
+          placeholder="Buscar por bairro, natureza, categoria..."
         />
         <button v-if="busca" class="busca-limpar" @click="busca = ''">
           <i class="mdi mdi-close"></i>
         </button>
       </div>
-      <span class="toolbar-total">
-        {{ filtrados.length }} ocorrências
-      </span>
+      <span class="toolbar-total">{{ filtrados.length }} ocorrencias</span>
     </div>
 
-    <!-- Tabela -->
     <div class="tabela-wrapper">
       <table class="crimes-table">
         <thead>
@@ -38,30 +34,32 @@
                 class="sort-icon"
               ></i>
             </th>
-            <th class="th-acao">Ações</th>
+            <th class="th-acao">Acoes</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="crime in paginados"
-            :key="crime.id"
+            v-for="(crime, index) in paginados"
+            :key="crimeKey(crime, index)"
             class="crime-row"
             @click="$emit('selecionar', crime)"
           >
             <td>
-              <span class="tipo-tag" :style="{ color: corTipo(crime.tipo), background: corTipo(crime.tipo) + '18' }">
-                {{ labelTipo(crime.tipo) }}
+              <span
+                class="tipo-tag"
+                :style="{
+                  color: corNatureza(crime.properties.natureza),
+                  background: corNatureza(crime.properties.natureza) + '18',
+                }"
+              >
+                {{ labelNatureza(crime.properties.natureza) }}
               </span>
             </td>
-            <td class="td-bairro">{{ crime.bairro }}</td>
-            <td class="td-endereco">{{ crime.endereco }}</td>
-            <td class="td-data">{{ formatarData(crime.data) }}</td>
-            <td class="td-hora">{{ formatarHora(crime.data) }}</td>
-            <td>
-              <span class="status-tag" :style="{ color: corStatus(crime.status), background: corStatus(crime.status) + '18' }">
-                {{ labelStatus(crime.status) }}
-              </span>
-            </td>
+            <td class="td-bairro">{{ crime.properties.bairro }}</td>
+            <td class="td-categoria">{{ crime.properties.categoria }}</td>
+            <td class="td-data">{{ formatarDataCrime(crime.properties.dataFato) }}</td>
+            <td class="td-hora">{{ formatarHoraCrime(crime.properties.horaFato) }}</td>
+            <td class="td-meio">{{ crime.properties.meioEmpregado || 'Nao informado' }}</td>
             <td class="td-acao">
               <button class="btn-ver" @click.stop="$emit('selecionar', crime)" title="Ver detalhes">
                 <i class="mdi mdi-eye-outline"></i>
@@ -72,7 +70,7 @@
             <td colspan="7" class="td-vazio">
               <div class="empty-inline">
                 <i class="mdi mdi-magnify-close"></i>
-                <span>Nenhuma ocorrência encontrada</span>
+                <span>Nenhuma ocorrencia encontrada</span>
               </div>
             </td>
           </tr>
@@ -80,31 +78,16 @@
       </table>
     </div>
 
-    <!-- Paginação -->
     <div v-if="totalPaginas > 1" class="paginacao">
-      <button
-        class="pag-btn"
-        :disabled="pagina === 1"
-        @click="pagina = 1"
-        title="Primeira"
-      >
+      <button class="pag-btn" :disabled="pagina === 1" title="Primeira" @click="pagina = 1">
         <i class="mdi mdi-chevron-double-left"></i>
       </button>
-      <button
-        class="pag-btn"
-        :disabled="pagina === 1"
-        @click="pagina--"
-        title="Anterior"
-      >
+      <button class="pag-btn" :disabled="pagina === 1" title="Anterior" @click="pagina--">
         <i class="mdi mdi-chevron-left"></i>
       </button>
 
       <template v-for="p in paginasVisiveis" :key="p">
-        <button
-          v-if="p === '...'"
-          class="pag-btn pag-dots"
-          disabled
-        >...</button>
+        <button v-if="p === '...'" class="pag-btn pag-dots" disabled>...</button>
         <button
           v-else
           class="pag-btn pag-num"
@@ -118,22 +101,22 @@
       <button
         class="pag-btn"
         :disabled="pagina === totalPaginas"
+        title="Proxima"
         @click="pagina++"
-        title="Próxima"
       >
         <i class="mdi mdi-chevron-right"></i>
       </button>
       <button
         class="pag-btn"
         :disabled="pagina === totalPaginas"
+        title="Ultima"
         @click="pagina = totalPaginas"
-        title="Última"
       >
         <i class="mdi mdi-chevron-double-right"></i>
       </button>
 
       <span class="pag-info">
-        {{ (pagina - 1) * porPagina + 1 }}–{{ Math.min(pagina * porPagina, filtrados.length) }}
+        {{ (pagina - 1) * porPagina + 1 }}-{{ Math.min(pagina * porPagina, filtrados.length) }}
         de {{ filtrados.length }}
       </span>
     </div>
@@ -141,62 +124,100 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import type { Crime } from '../types/crime'
-import { CRIME_LABELS, CRIME_CORES } from '../types/crime'
+import { computed, ref, watch } from 'vue'
+import {
+  chaveCrime,
+  corNatureza,
+  formatarDataCrime,
+  formatarHoraCrime,
+  labelNatureza,
+  type CrimeFeature,
+} from '../types/crime'
+
+type CampoOrdenacao =
+  | 'natureza'
+  | 'bairro'
+  | 'categoria'
+  | 'dataFato'
+  | 'horaFato'
+  | 'meioEmpregado'
 
 const props = defineProps<{
-  crimes: Crime[]
+  crimes: CrimeFeature[]
 }>()
 
 defineEmits<{
-  selecionar: [crime: Crime]
+  selecionar: [crime: CrimeFeature]
 }>()
 
 const busca = ref('')
 const porPagina = 20
 const pagina = ref(1)
-const ordenacao = ref<{ campo: string; asc: boolean }>({ campo: 'data', asc: false })
+const ordenacao = ref<{ campo: CampoOrdenacao; asc: boolean }>({
+  campo: 'dataFato',
+  asc: false,
+})
 
-const colunas = [
-  { key: 'tipo', label: 'Tipo' },
+const colunas: Array<{ key: CampoOrdenacao; label: string }> = [
+  { key: 'natureza', label: 'Natureza' },
   { key: 'bairro', label: 'Bairro' },
-  { key: 'endereco', label: 'Endereço' },
-  { key: 'data', label: 'Data' },
-  { key: 'hora', label: 'Hora' },
-  { key: 'status', label: 'Status' },
+  { key: 'categoria', label: 'Categoria' },
+  { key: 'dataFato', label: 'Data' },
+  { key: 'horaFato', label: 'Hora' },
+  { key: 'meioEmpregado', label: 'Meio Empregado' },
 ]
+
+function crimeKey(crime: CrimeFeature, index: number): string {
+  return `${chaveCrime(crime)}-${index}`
+}
+
+function getValorOrdenacao(crime: CrimeFeature, campo: CampoOrdenacao): string | number {
+  const { properties } = crime
+
+  switch (campo) {
+    case 'dataFato':
+      return new Date(properties.dataFato).getTime()
+    case 'horaFato':
+      return properties.horaFato || ''
+    case 'natureza':
+      return labelNatureza(properties.natureza)
+    case 'bairro':
+      return properties.bairro
+    case 'categoria':
+      return properties.categoria
+    case 'meioEmpregado':
+      return properties.meioEmpregado || ''
+  }
+}
 
 const filtrados = computed(() => {
   let resultado = [...props.crimes]
 
   if (busca.value.trim()) {
     const termo = busca.value.toLowerCase()
-    resultado = resultado.filter(c =>
-      c.endereco.toLowerCase().includes(termo) ||
-      c.bairro.toLowerCase().includes(termo) ||
-      (CRIME_LABELS[c.tipo as keyof typeof CRIME_LABELS] || c.tipo).toLowerCase().includes(termo) ||
-      c.id.toLowerCase().includes(termo)
-    )
+
+    resultado = resultado.filter((crime) => {
+      const { properties } = crime
+
+      return (
+        properties.bairro.toLowerCase().includes(termo) ||
+        properties.categoria.toLowerCase().includes(termo) ||
+        properties.natureza.toLowerCase().includes(termo) ||
+        labelNatureza(properties.natureza).toLowerCase().includes(termo) ||
+        (properties.meioEmpregado || '').toLowerCase().includes(termo)
+      )
+    })
   }
 
   resultado.sort((a, b) => {
-    const campo = ordenacao.value.campo
-    let va: string | number, vb: string | number
+    let valorA = getValorOrdenacao(a, ordenacao.value.campo)
+    let valorB = getValorOrdenacao(b, ordenacao.value.campo)
 
-    if (campo === 'hora') {
-      va = new Date(a.data).getHours() * 60 + new Date(a.data).getMinutes()
-      vb = new Date(b.data).getHours() * 60 + new Date(b.data).getMinutes()
-    } else {
-      va = (a as Record<string, string | number>)[campo] ?? ''
-      vb = (b as Record<string, string | number>)[campo] ?? ''
-    }
+    if (typeof valorA === 'string') valorA = valorA.toLowerCase()
+    if (typeof valorB === 'string') valorB = valorB.toLowerCase()
 
-    if (typeof va === 'string') va = va.toLowerCase()
-    if (typeof vb === 'string') vb = vb.toLowerCase()
-
-    if (va < vb) return ordenacao.value.asc ? -1 : 1
-    if (va > vb) return ordenacao.value.asc ? 1 : -1
+    if (valorA < valorB) return ordenacao.value.asc ? -1 : 1
+    if (valorA > valorB) return ordenacao.value.asc ? 1 : -1
     return 0
   })
 
@@ -213,7 +234,7 @@ const paginados = computed(() => {
 const paginasVisiveis = computed(() => {
   const total = totalPaginas.value
   const atual = pagina.value
-  const result: (number | string)[] = []
+  const result: Array<number | string> = []
 
   if (total <= 7) {
     for (let i = 1; i <= total; i++) result.push(i)
@@ -230,49 +251,18 @@ const paginasVisiveis = computed(() => {
   return result
 })
 
-watch([busca, () => props.crimes], () => { pagina.value = 1 })
+watch([busca, () => props.crimes], () => {
+  pagina.value = 1
+})
 
-function ordenarPor(campo: string) {
+function ordenarPor(campo: CampoOrdenacao) {
   if (ordenacao.value.campo === campo) {
     ordenacao.value.asc = !ordenacao.value.asc
   } else {
     ordenacao.value = { campo, asc: true }
   }
+
   pagina.value = 1
-}
-
-function labelTipo(tipo: string): string {
-  return CRIME_LABELS[tipo as keyof typeof CRIME_LABELS] || tipo
-}
-
-function corTipo(tipo: string): string {
-  return CRIME_CORES[tipo as keyof typeof CRIME_CORES] || '#6b7280'
-}
-
-function labelStatus(status: string): string {
-  const labels: Record<string, string> = {
-    aberto: 'Aberto',
-    em_investigacao: 'Em Investigação',
-    solucionado: 'Solucionado',
-  }
-  return labels[status] || status
-}
-
-function corStatus(status: string): string {
-  const cores: Record<string, string> = {
-    aberto: '#ef4444',
-    em_investigacao: '#f59e0b',
-    solucionado: '#22c55e',
-  }
-  return cores[status] || '#6b7280'
-}
-
-function formatarData(data: string): string {
-  return new Date(data).toLocaleDateString('pt-BR')
-}
-
-function formatarHora(data: string): string {
-  return new Date(data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
@@ -356,7 +346,7 @@ function formatarHora(data: string): string {
 .crimes-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 700px;
+  min-width: 760px;
 }
 
 .crimes-table thead {
@@ -419,8 +409,7 @@ function formatarHora(data: string): string {
   background: rgba(59, 130, 246, 0.05);
 }
 
-.tipo-tag,
-.status-tag {
+.tipo-tag {
   display: inline-block;
   padding: 0.1875rem 0.5rem;
   border-radius: 4px;
@@ -433,7 +422,8 @@ function formatarHora(data: string): string {
   font-weight: 500;
 }
 
-.td-endereco {
+.td-categoria,
+.td-meio {
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -491,7 +481,6 @@ function formatarHora(data: string): string {
   font-size: 1.25rem;
 }
 
-/* Paginação */
 .paginacao {
   display: flex;
   align-items: center;

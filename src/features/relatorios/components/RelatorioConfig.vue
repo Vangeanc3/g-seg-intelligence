@@ -1,32 +1,42 @@
 <template>
   <div class="config-container">
-    <h2 class="config-titulo">Configurar Relatório</h2>
-    <p class="config-descricao">Defina os parâmetros para gerar seu relatório de segurança.</p>
+    <h2 class="config-titulo">Configurar Relatorio</h2>
+    <p class="config-descricao">Defina os parametros para gerar seu relatorio de seguranca.</p>
 
     <div class="config-form">
-      <!-- Título -->
       <div class="form-grupo">
-        <label class="form-label">Título do Relatório</label>
+        <label class="form-label">Titulo do Relatorio</label>
         <input
           type="text"
           class="form-input"
-          v-model="props.config.titulo"
-          placeholder="Ex: Relatório Mensal de Segurança"
+          :value="props.config.titulo"
+          placeholder="Ex: Relatorio Mensal de Seguranca"
+          @input="atualizarCampo('titulo', ($event.target as HTMLInputElement).value)"
         />
       </div>
 
-      <!-- Período -->
       <div class="form-grupo">
-        <label class="form-label">Período</label>
+        <label class="form-label">Periodo</label>
         <div class="date-row">
-          <input type="date" class="form-input date" v-model="props.config.periodo.inicio" />
-          <span class="date-sep">até</span>
-          <input type="date" class="form-input date" v-model="props.config.periodo.fim" />
+          <input
+            type="date"
+            class="form-input date"
+            :value="props.config.dataInicio"
+            @input="atualizarCampo('dataInicio', ($event.target as HTMLInputElement).value)"
+          />
+          <span class="date-sep">ate</span>
+          <input
+            type="date"
+            class="form-input date"
+            :value="props.config.dataFim"
+            @input="atualizarCampo('dataFim', ($event.target as HTMLInputElement).value)"
+          />
         </div>
         <div class="periodo-rapido">
           <button
             v-for="opt in periodoOpts"
             :key="opt.dias"
+            type="button"
             class="btn-periodo"
             @click="setPeriodo(opt.dias)"
           >
@@ -35,82 +45,91 @@
         </div>
       </div>
 
-      <!-- Bairros -->
       <div class="form-grupo">
         <label class="form-label">Bairros <span class="form-hint">(vazio = todos)</span></label>
         <div class="checkbox-grid">
           <label
-            v-for="bairro in bairrosDisponiveis"
+            v-for="bairro in props.bairrosDisponiveis"
             :key="bairro"
             class="checkbox-item"
           >
             <input
               type="checkbox"
-              :value="bairro"
-              v-model="props.config.bairros"
+              :checked="props.config.bairros.includes(bairro)"
+              @change="alternarSelecao('bairros', bairro, ($event.target as HTMLInputElement).checked)"
             />
             <span>{{ bairro }}</span>
           </label>
         </div>
       </div>
 
-      <!-- Tipos de crime -->
       <div class="form-grupo">
         <label class="form-label">Tipos de Crime <span class="form-hint">(vazio = todos)</span></label>
         <div class="checkbox-grid tipos">
           <label
-            v-for="tipo in tiposDisponiveis"
-            :key="tipo.value"
+            v-for="nat in naturezasDisponiveis"
+            :key="nat.value"
             class="checkbox-item"
           >
             <input
               type="checkbox"
-              :value="tipo.value"
-              v-model="props.config.tipos"
+              :checked="props.config.naturezas.includes(nat.value)"
+              @change="alternarSelecao('naturezas', nat.value, ($event.target as HTMLInputElement).checked)"
             />
             <span class="tipo-label">
-              <span class="tipo-dot" :style="{ background: tipo.cor }"></span>
-              {{ tipo.label }}
+              <span class="tipo-dot" :style="{ background: nat.cor }"></span>
+              {{ nat.label }}
             </span>
           </label>
         </div>
       </div>
 
-      <!-- Info preview -->
-      <div v-if="totalFiltrado > 0" class="config-preview-info">
+      <div v-if="props.carregando" class="config-preview-info loading">
+        <i class="mdi mdi-loading mdi-spin"></i>
+        <span>Buscando ocorrencias...</span>
+      </div>
+      <div v-else-if="props.totalFiltrado > 0" class="config-preview-info">
         <i class="mdi mdi-information-outline"></i>
-        <span>{{ totalFiltrado }} ocorrências encontradas com os filtros atuais</span>
+        <span>{{ props.totalFiltrado }} ocorrencias encontradas com os filtros atuais</span>
       </div>
       <div v-else class="config-empty-warning">
         <i class="mdi mdi-alert-circle"></i>
-        <span>Nenhuma ocorrência encontrada. Ajuste os filtros para gerar o relatório.</span>
+        <span>Nenhuma ocorrencia encontrada. Ajuste os filtros para gerar o relatorio.</span>
       </div>
 
-      <!-- Botão gerar -->
-      <button class="btn-gerar" @click="$emit('gerar')" :disabled="totalFiltrado === 0">
+      <button
+        type="button"
+        class="btn-gerar"
+        :disabled="props.totalFiltrado === 0 || props.carregando"
+        @click="emit('gerar')"
+      >
         <i class="mdi mdi-file-chart"></i>
-        Gerar Relatório
+        {{ props.carregando ? 'Buscando...' : 'Gerar Relatorio' }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { CRIME_CORES, CRIME_LABELS } from '@/features/mapa-crimes/types/crime'
 import type { RelatorioConfig } from '../types/relatorio'
-import { CRIME_LABELS, CRIME_CORES } from '@/features/mapa-crimes/types/crime'
 
 const props = defineProps<{
   config: RelatorioConfig
   bairrosDisponiveis: string[]
   totalFiltrado: number
+  carregando: boolean
 }>()
 
-defineEmits<{ gerar: [] }>()
+const emit = defineEmits<{
+  gerar: []
+  'update:config': [value: RelatorioConfig]
+}>()
 
-const tiposDisponiveis = Object.entries(CRIME_LABELS).map(([value, label]) => ({
+const naturezasDisponiveis = Object.entries(CRIME_LABELS).map(([value, label]) => ({
   value,
   label,
-  cor: CRIME_CORES[value as keyof typeof CRIME_CORES],
+  cor: CRIME_CORES[value] ?? '#6b7280',
 }))
 
 const periodoOpts = [
@@ -119,12 +138,42 @@ const periodoOpts = [
   { label: '90 dias', dias: 90 },
 ]
 
+function emitConfig(parcial: Partial<RelatorioConfig>) {
+  emit('update:config', {
+    ...props.config,
+    ...parcial,
+  })
+}
+
+function atualizarCampo<K extends keyof RelatorioConfig>(
+  campo: K,
+  valor: RelatorioConfig[K],
+) {
+  emitConfig({ [campo]: valor } as Pick<RelatorioConfig, K>)
+}
+
+function alternarSelecao(
+  campo: 'bairros' | 'naturezas',
+  valor: string,
+  checked: boolean,
+) {
+  const atual = props.config[campo]
+  const proximo = checked
+    ? [...atual, valor]
+    : atual.filter((item) => item !== valor)
+
+  emitConfig({ [campo]: proximo } as Pick<RelatorioConfig, typeof campo>)
+}
+
 function setPeriodo(dias: number) {
   const fim = new Date()
   const inicio = new Date()
   inicio.setDate(inicio.getDate() - dias)
-  props.config.periodo.inicio = inicio.toISOString().split('T')[0]!
-  props.config.periodo.fim = fim.toISOString().split('T')[0]!
+
+  emitConfig({
+    dataInicio: inicio.toISOString().split('T')[0]!,
+    dataFim: fim.toISOString().split('T')[0]!,
+  })
 }
 </script>
 
@@ -247,7 +296,7 @@ function setPeriodo(dias: number) {
   cursor: pointer;
 }
 
-.checkbox-item input[type="checkbox"] {
+.checkbox-item input[type='checkbox'] {
   accent-color: #3b82f6;
 }
 
@@ -299,6 +348,12 @@ function setPeriodo(dias: number) {
 .btn-gerar:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.config-preview-info.loading {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
 }
 
 .config-empty-warning {

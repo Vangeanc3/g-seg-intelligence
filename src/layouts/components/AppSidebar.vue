@@ -63,6 +63,7 @@ const menuItems = [
   { path: '/app/mapa', label: 'Mapa de Crimes', icon: 'mdi mdi-map-marker' },
   { path: '/app/analytics', label: 'Analytics', icon: 'mdi mdi-chart-line' },
   { path: '/app/relatorios', label: 'Relatórios', icon: 'mdi mdi-file-document' },
+  { path: '/app/importacao', label: 'Importação', icon: 'mdi mdi-cloud-upload-outline' },
 ]
 
 function isActive(path: string) {

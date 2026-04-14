@@ -1,10 +1,10 @@
 <template>
   <div class="tabela-container">
-    <h3 class="tabela-titulo">Ranking de Bairros</h3>
+    <h3 class="tabela-titulo">{{ titulo }}</h3>
     <EmptyState
-      v-if="ranking.length === 0"
-      titulo="Sem dados de ranking"
-      descricao="Não há ocorrências suficientes para gerar o ranking de bairros."
+      v-if="dados.length === 0"
+      titulo="Sem dados de categorias"
+      descricao="Nao ha ocorrencias suficientes para gerar o ranking de categorias."
       icone="mdi mdi-format-list-numbered"
       cor="#3b82f6"
     />
@@ -13,41 +13,23 @@
         <thead>
           <tr>
             <th class="th-pos">#</th>
-            <th class="th-bairro">Bairro</th>
-            <th class="th-total">Ocorrências</th>
+            <th class="th-label">Categoria</th>
+            <th class="th-total">Ocorrencias</th>
             <th class="th-percent">%</th>
-            <th class="th-tipo">Tipo Predominante</th>
-            <th v-if="temVariacao" class="th-variacao">Variação</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(item, index) in ranking" :key="item.bairro">
+          <tr v-for="(item, index) in ranking" :key="item.label">
             <td class="td-pos">
               <span class="pos-badge" :class="'pos-' + (index + 1)">{{ index + 1 }}</span>
             </td>
-            <td class="td-bairro">{{ item.bairro }}</td>
+            <td class="td-label">{{ item.label }}</td>
             <td class="td-total">{{ item.total }}</td>
             <td class="td-percent">
               <div class="percent-bar-wrapper">
                 <div class="percent-bar" :style="{ width: item.percentual + '%' }"></div>
                 <span class="percent-text">{{ item.percentual }}%</span>
               </div>
-            </td>
-            <td class="td-tipo">
-              <span class="tipo-tag" :style="{ color: corTipo(item.tipoPredominante), background: corTipo(item.tipoPredominante) + '20' }">
-                {{ labelTipo(item.tipoPredominante) }}
-              </span>
-            </td>
-            <td v-if="temVariacao" class="td-variacao">
-              <span
-                v-if="item.variacao !== null"
-                class="variacao-badge"
-                :class="item.variacao >= 0 ? 'up' : 'down'"
-              >
-                <i :class="item.variacao >= 0 ? 'mdi mdi-arrow-up' : 'mdi mdi-arrow-down'"></i>
-                {{ Math.abs(item.variacao) }}%
-              </span>
-              <span v-else class="variacao-na">—</span>
             </td>
           </tr>
         </tbody>
@@ -58,30 +40,27 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CRIME_LABELS, CRIME_CORES } from '@/features/mapa-crimes/types/crime'
 import EmptyState from '@/shared/components/EmptyState.vue'
+import type { LabelTotal } from '../services/analyticsService'
 
-interface RankingItem {
-  bairro: string
-  total: number
-  percentual: number
-  variacao: number | null
-  tipoPredominante: string
-}
+const props = withDefaults(
+  defineProps<{
+    dados: LabelTotal[]
+    titulo?: string
+  }>(),
+  {
+    titulo: 'Top Categorias de Crimes',
+  },
+)
 
-const props = defineProps<{
-  ranking: RankingItem[]
-}>()
+const ranking = computed(() => {
+  const total = props.dados.reduce((acc, item) => acc + item.total, 0) || 1
 
-const temVariacao = computed(() => props.ranking.some(r => r.variacao !== null))
-
-function labelTipo(tipo: string): string {
-  return CRIME_LABELS[tipo as keyof typeof CRIME_LABELS] || tipo
-}
-
-function corTipo(tipo: string): string {
-  return CRIME_CORES[tipo as keyof typeof CRIME_CORES] || '#6b7280'
-}
+  return props.dados.map((item) => ({
+    ...item,
+    percentual: Math.round((item.total / total) * 100),
+  }))
+})
 </script>
 
 <style scoped>
@@ -151,7 +130,7 @@ function corTipo(tipo: string): string {
 .pos-2 { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
 .pos-3 { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
 
-.td-bairro {
+.td-label {
   font-weight: 500;
 }
 
@@ -171,7 +150,7 @@ function corTipo(tipo: string): string {
   background: #3b82f6;
   border-radius: 3px;
   min-width: 4px;
-  max-width: 100px;
+  max-width: 120px;
   transition: width 0.3s ease;
 }
 
@@ -181,40 +160,7 @@ function corTipo(tipo: string): string {
   font-variant-numeric: tabular-nums;
 }
 
-.tipo-tag {
-  display: inline-block;
-  padding: 0.1875rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.variacao-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.125rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.125rem 0.375rem;
-  border-radius: 4px;
-}
-
-.variacao-badge.up {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.variacao-badge.down {
-  color: #22c55e;
-  background: rgba(34, 197, 94, 0.1);
-}
-
-.variacao-na {
-  color: #475569;
-}
-
 .th-pos { width: 40px; }
-.th-total { width: 100px; }
-.th-percent { width: 160px; }
-.th-variacao { width: 90px; }
+.th-total { width: 120px; }
+.th-percent { width: 180px; }
 </style>

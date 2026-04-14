@@ -52,6 +52,10 @@ interface GeocodingResult {
   center: [number, number] // [lng, lat]
 }
 
+interface GeocodingResponse {
+  features?: GeocodingResult[]
+}
+
 const emit = defineEmits<{
   selecionar: [coords: { lng: number; lat: number; nome: string; zoom: number }]
 }>()
@@ -86,9 +90,9 @@ async function buscar(texto: string) {
 
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(texto)}.json?${params}`
     const response = await fetch(url)
-    const data = await response.json()
+    const data = (await response.json()) as GeocodingResponse
 
-    resultados.value = (data.features || []).map((f: any) => ({
+    resultados.value = (data.features || []).map((f) => ({
       text: f.text,
       place_name: f.place_name,
       center: f.center,

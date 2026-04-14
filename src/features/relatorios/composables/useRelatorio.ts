@@ -1,192 +1,196 @@
-import { ref, computed } from 'vue'
-import { crimesMock } from '@/features/mapa-crimes/services/crimeService'
+import { ref, computed, watch } from 'vue'
+import { crimesService } from '@/features/mapa-crimes/services/crimesService'
+import type { CrimesGeoJson } from '@/features/mapa-crimes/types/crime'
 import { CRIME_LABELS, CRIME_CORES } from '@/features/mapa-crimes/types/crime'
-import type { TipoCrime } from '@/features/mapa-crimes/types/crime'
-import type { RelatorioConfig, RelatorioResumo } from '../types/relatorio'
-import jsPDF from 'jspdf'
-// @ts-ignore - jspdf-autotable extends jsPDF prototype
-import autoTable from 'jspdf-autotable'
+import type { RelatorioConfig, RelatorioEstatisticas } from '../types/relatorio'
 import { useToast } from '@/shared/composables/useToast'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
+type JsPdfWithAutoTable = jsPDF & {
+  lastAutoTable?: { finalY: number }
+}
 
 export function useRelatorio() {
-  const crimes = crimesMock
   const toast = useToast()
 
   const config = ref<RelatorioConfig>({
-    titulo: 'Relatório de Segurança',
-    periodo: {
-      inicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
-      fim: new Date().toISOString().split('T')[0]!,
-    },
+    titulo: 'Relatório de Ocorrências — Belém/PA',
+    dataInicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
+    dataFim: new Date().toISOString().split('T')[0]!,
     bairros: [],
-    tipos: [],
+    naturezas: [],
   })
 
-  const gerado = ref(false)
+  const dados = ref<CrimesGeoJson['features']>([])
+  const carregando = ref(false)
+  const relatorioGerado = ref(false)
 
-  // Crimes filtrados pela config
-  const crimesFiltrados = computed(() => {
-    let resultado = [...crimes]
+  // Bairros disponíveis — hardcoded por enquanto (API só tem TERRA FIRME)
+  const bairrosDisponiveis = ['TERRA FIRME']
 
-    if (config.value.periodo.inicio) {
-      resultado = resultado.filter(c => c.data >= config.value.periodo.inicio)
-    }
-    if (config.value.periodo.fim) {
-      resultado = resultado.filter(c => c.data <= config.value.periodo.fim + 'T23:59:59')
-    }
-    if (config.value.bairros.length > 0) {
-      resultado = resultado.filter(c => config.value.bairros.includes(c.bairro))
-    }
-    if (config.value.tipos.length > 0) {
-      resultado = resultado.filter(c => config.value.tipos.includes(c.tipo))
-    }
+  // Debounced busca quando filtros mudam
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-    return resultado
-  })
+  watch(
+    () => [config.value.dataInicio, config.value.dataFim, config.value.bairros, config.value.naturezas],
+    () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(buscarDados, 500)
+    },
+    { deep: true },
+  )
 
-  // Resumo calculado
-  const resumo = computed<RelatorioResumo>(() => {
-    const lista = crimesFiltrados.value
-    const total = lista.length
+  async function buscarDados() {
+    carregando.value = true
+    try {
+      const geoJson = await crimesService.getGeoJson({
+        dataInicio: config.value.dataInicio || undefined,
+        dataFim: config.value.dataFim || undefined,
+        bairro: config.value.bairros[0] || undefined,
+        natureza: config.value.naturezas[0] || undefined,
+      })
+
+      // Filtros adicionais client-side se múltiplas seleções
+      let filtrados = geoJson.features
+      if (config.value.bairros.length > 1) {
+        filtrados = filtrados.filter(f => config.value.bairros.includes(f.properties.bairro))
+      }
+      if (config.value.naturezas.length > 1) {
+        filtrados = filtrados.filter(f => config.value.naturezas.includes(f.properties.natureza))
+      }
+
+      dados.value = filtrados
+    } catch {
+      toast.error('Erro ao buscar dados para o relatório')
+      dados.value = []
+    } finally {
+      carregando.value = false
+    }
+  }
+
+  // Busca inicial
+  buscarDados()
+
+  const totalFiltrado = computed(() => dados.value.length)
+
+  async function gerarRelatorio() {
+    await buscarDados()
+    if (dados.value.length === 0) {
+      toast.warning('Nenhuma ocorrência encontrada com os filtros selecionados')
+      return
+    }
+    relatorioGerado.value = true
+    toast.success('Relatório gerado com sucesso')
+  }
+
+  function voltar() {
+    relatorioGerado.value = false
+  }
+
+  // ── Estatísticas ──────────────────────────────────────────────
+
+  const estatisticas = computed<RelatorioEstatisticas>(() => {
+    const total = dados.value.length
+    const porBairro: Record<string, number> = {}
+    const porNatureza: Record<string, number> = {}
+    const contagemHora = new Array(24).fill(0) as number[]
+
+    dados.value.forEach(f => {
+      const p = f.properties
+      porBairro[p.bairro] = (porBairro[p.bairro] || 0) + 1
+      porNatureza[p.natureza] = (porNatureza[p.natureza] || 0) + 1
+      if (p.horaFato) {
+        const hora = parseInt(p.horaFato.split(':')[0]!, 10)
+        if (!isNaN(hora)) {
+          contagemHora[hora] = (contagemHora[hora] ?? 0) + 1
+        }
+      }
+    })
+
+    const topBairros = Object.entries(porBairro)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([bairro, qtd]) => ({ bairro, qtd }))
+
+    const topNaturezas = Object.entries(porNatureza)
+      .sort((a, b) => b[1] - a[1])
+      .map(([natureza, qtd]) => ({
+        natureza,
+        label: CRIME_LABELS[natureza] ?? natureza,
+        qtd,
+        pct: total > 0 ? Math.round((qtd / total) * 100) : 0,
+        cor: CRIME_CORES[natureza] ?? '#6b7280',
+      }))
 
     // Período em dias
-    const inicio = new Date(config.value.periodo.inicio)
-    const fim = new Date(config.value.periodo.fim)
+    const inicio = new Date(config.value.dataInicio)
+    const fim = new Date(config.value.dataFim)
     const periodoDias = Math.max(1, Math.ceil((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)))
-
-    // Média diária
     const mediaDiaria = Math.round((total / periodoDias) * 10) / 10
 
-    // Bairro mais perigoso
-    const contagemBairro: Record<string, number> = {}
-    lista.forEach(c => { contagemBairro[c.bairro] = (contagemBairro[c.bairro] || 0) + 1 })
-    const bairroEntries = Object.entries(contagemBairro).sort((a, b) => b[1] - a[1])
-    const bairroMaisPerigoso = bairroEntries.length > 0 ? bairroEntries[0]![0] : 'N/A'
-
-    // Tipo mais frequente
-    const contagemTipo: Record<string, number> = {}
-    lista.forEach(c => { contagemTipo[c.tipo] = (contagemTipo[c.tipo] || 0) + 1 })
-    const tipoEntries = Object.entries(contagemTipo).sort((a, b) => b[1] - a[1])
-    const tipoMaisFrequente = tipoEntries.length > 0
-      ? CRIME_LABELS[tipoEntries[0]![0] as keyof typeof CRIME_LABELS] || tipoEntries[0]![0]
+    // Horário de pico
+    const pico = contagemHora.indexOf(Math.max(...contagemHora))
+    const horarioPico = total > 0
+      ? `${pico.toString().padStart(2, '0')}:00 - ${(pico + 1).toString().padStart(2, '0')}:00`
       : 'N/A'
 
-    // Horário de pico
-    const contagemHora = new Array(24).fill(0)
-    lista.forEach(c => { contagemHora[new Date(c.data).getHours()]++ })
-    const pico = contagemHora.indexOf(Math.max(...contagemHora))
-    const horarioPico = `${pico.toString().padStart(2, '0')}:00 - ${(pico + 1).toString().padStart(2, '0')}:00`
-
-    // Por tipo
-    const porTipo = Object.entries(contagemTipo)
-      .map(([tipo, count]) => ({
-        tipo,
-        label: CRIME_LABELS[tipo as keyof typeof CRIME_LABELS] || tipo,
-        total: count,
-        cor: CRIME_CORES[tipo as keyof typeof CRIME_CORES] || '#6b7280',
-        percentual: total > 0 ? Math.round((count / total) * 100) : 0,
-      }))
-      .sort((a, b) => b.total - a.total)
-
-    // Por bairro (top 10)
-    const porBairro = bairroEntries
-      .slice(0, 10)
-      .map(([bairro, count]) => ({
-        bairro,
-        total: count,
-        percentual: total > 0 ? Math.round((count / total) * 100) : 0,
-      }))
-
-    // Por status
-    const contagemStatus: Record<string, number> = {}
-    lista.forEach(c => { contagemStatus[c.status] = (contagemStatus[c.status] || 0) + 1 })
-    const statusLabels: Record<string, string> = {
-      aberto: 'Aberto',
-      em_investigacao: 'Em Investigação',
-      solucionado: 'Solucionado',
-    }
-    const statusCores: Record<string, string> = {
-      aberto: '#ef4444',
-      em_investigacao: '#f59e0b',
-      solucionado: '#22c55e',
-    }
-    const porStatus = Object.entries(contagemStatus).map(([status, count]) => ({
-      status,
-      label: statusLabels[status] || status,
-      total: count,
-      cor: statusCores[status] || '#6b7280',
-    }))
+    const bairroMaisPerigoso = topBairros[0]?.bairro ?? 'N/A'
+    const tipoMaisFrequente = topNaturezas[0]
+      ? topNaturezas[0].label
+      : 'N/A'
 
     return {
-      totalCrimes: total,
-      periodoDias,
+      total,
       mediaDiaria,
       bairroMaisPerigoso,
       tipoMaisFrequente,
       horarioPico,
-      porTipo,
-      porBairro,
-      porStatus,
+      periodoDias,
+      topBairros,
+      topNaturezas,
     }
   })
 
-  function gerarRelatorio() {
-    gerado.value = true
-    toast.info('Relatório gerado com sucesso!')
-  }
-
-  function voltarConfig() {
-    gerado.value = false
-  }
+  // ── Exportar CSV ──────────────────────────────────────────────
 
   function exportarCsv() {
-    const lista = crimesFiltrados.value
-
-    if (lista.length === 0) {
-      toast.warning('Nenhuma ocorrência encontrada com os filtros atuais.')
+    if (dados.value.length === 0) {
+      toast.warning('Nenhum dado para exportar')
       return
     }
 
-    // Headers
-    const headers = ['ID', 'Tipo', 'Bairro', 'Endereço', 'Data', 'Hora', 'Status', 'Latitude', 'Longitude', 'Descrição']
-
-    // Rows
-    const rows = lista.map(c => {
-      const d = new Date(c.data)
+    const headers = ['Natureza', 'Categoria', 'Data', 'Hora', 'Bairro', 'Meio Empregado', 'Sexo Vítima', 'Idade Vítima', 'Latitude', 'Longitude']
+    const linhas = dados.value.map(f => {
+      const p = f.properties
+      const [lng, lat] = f.geometry.coordinates
       return [
-        c.id,
-        CRIME_LABELS[c.tipo as keyof typeof CRIME_LABELS] || c.tipo,
-        c.bairro,
-        `"${c.endereco.replace(/"/g, '""')}"`,
-        d.toLocaleDateString('pt-BR'),
-        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        c.status === 'em_investigacao' ? 'Em Investigação' : c.status === 'solucionado' ? 'Solucionado' : 'Aberto',
-        c.lat,
-        c.lng,
-        `"${(c.descricao || '').replace(/"/g, '""')}"`,
-      ].join(',')
+        p.natureza,
+        p.categoria || '',
+        p.dataFato,
+        p.horaFato || '',
+        p.bairro,
+        p.meioEmpregado || '',
+        p.sexoVitima || '',
+        p.idadeVitima?.toString() || '',
+        lat!.toString(),
+        lng!.toString(),
+      ].map(v => `"${v.replace(/"/g, '""')}"`).join(';')
     })
 
-    // BOM pra Excel reconhecer UTF-8
-    const bom = '\uFEFF'
-    const csv = bom + [headers.join(','), ...rows].join('\n')
-
-    // Download
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const csv = '\uFEFF' + [headers.join(';'), ...linhas].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-
-    // Nome do arquivo com data
-    const hoje = new Date().toISOString().split('T')[0]
     link.href = url
-    link.download = `gseg-relatorio-${hoje}.csv`
+    link.download = `gseg-relatorio-${new Date().toISOString().split('T')[0]}.csv`
     link.click()
     URL.revokeObjectURL(url)
-
     toast.success('CSV exportado com sucesso!')
   }
 
-  // Helper: converter hex pra RGB
+  // ── Exportar PDF ──────────────────────────────────────────────
+
   function hexToRgb(hex: string): [number, number, number] {
     const r = parseInt(hex.slice(1, 3), 16)
     const g = parseInt(hex.slice(3, 5), 16)
@@ -194,7 +198,6 @@ export function useRelatorio() {
     return [r, g, b]
   }
 
-  // Helper: formatar data pro PDF
   function formatDatePdf(dateStr: string): string {
     if (!dateStr) return ''
     return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', {
@@ -205,27 +208,24 @@ export function useRelatorio() {
   }
 
   function exportarPdf() {
-    const lista = crimesFiltrados.value
-    const r = resumo.value
-
-    if (lista.length === 0) {
-      toast.warning('Nenhuma ocorrência encontrada com os filtros atuais.')
+    if (dados.value.length === 0) {
+      toast.warning('Nenhum dado para exportar')
       return
     }
 
+    const est = estatisticas.value
     const doc = new jsPDF('p', 'mm', 'a4')
     const pageWidth = doc.internal.pageSize.getWidth()
     const margin = 15
     const contentWidth = pageWidth - margin * 2
     let y = margin
 
-    // --- Cores ---
+    // Cores
     const azul = [59, 130, 246] as [number, number, number]
     const cinzaEscuro = [30, 41, 59] as [number, number, number]
     const cinzaClaro = [148, 163, 184] as [number, number, number]
     const branco = [255, 255, 255] as [number, number, number]
 
-    // --- Helper ---
     function checkPageBreak(needed: number) {
       if (y + needed > doc.internal.pageSize.getHeight() - 20) {
         doc.addPage()
@@ -234,27 +234,21 @@ export function useRelatorio() {
     }
 
     // ===== HEADER =====
-    // Fundo azul no header
     doc.setFillColor(...azul)
     doc.rect(0, 0, pageWidth, 40, 'F')
 
-    // Título
     doc.setTextColor(...branco)
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
     doc.text('G-SEG Intelligence', margin, 16)
 
-    // Subtítulo
     doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
     doc.text(config.value.titulo, margin, 24)
 
-    // Período
     doc.setFontSize(8)
-    const periodoStr = `${formatDatePdf(config.value.periodo.inicio)} — ${formatDatePdf(config.value.periodo.fim)}`
+    const periodoStr = `${formatDatePdf(config.value.dataInicio)} — ${formatDatePdf(config.value.dataFim)}`
     doc.text(periodoStr, margin, 32)
-
-    // Localização
     doc.text('Belém/PA — Brasil', pageWidth - margin - doc.getTextWidth('Belém/PA — Brasil'), 32)
 
     y = 50
@@ -266,25 +260,22 @@ export function useRelatorio() {
     doc.text('Resumo Geral', margin, y)
     y += 8
 
-    const cardWidth = (contentWidth - 9) / 4 // 4 cards com 3px gap
+    const cardWidth = (contentWidth - 9) / 4
     const cards = [
-      { label: 'Total de Ocorrências', valor: r.totalCrimes.toString() },
-      { label: 'Média Diária', valor: r.mediaDiaria.toString() },
-      { label: 'Bairro Crítico', valor: r.bairroMaisPerigoso },
-      { label: 'Horário de Pico', valor: r.horarioPico },
+      { label: 'Total de Ocorrências', valor: est.total.toString() },
+      { label: 'Média Diária', valor: est.mediaDiaria.toString() },
+      { label: 'Bairro Crítico', valor: est.bairroMaisPerigoso },
+      { label: 'Horário de Pico', valor: est.horarioPico },
     ]
 
     cards.forEach((card, i) => {
       const x = margin + i * (cardWidth + 3)
-      // Background do card
       doc.setFillColor(245, 247, 250)
       doc.roundedRect(x, y, cardWidth, 22, 2, 2, 'F')
-      // Label
       doc.setFontSize(6.5)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(...cinzaClaro)
       doc.text(card.label.toUpperCase(), x + 4, y + 7)
-      // Valor
       doc.setFontSize(12)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(...cinzaEscuro)
@@ -294,7 +285,7 @@ export function useRelatorio() {
 
     y += 32
 
-    // ===== DISTRIBUIÇÃO POR TIPO =====
+    // ===== DISTRIBUIÇÃO POR NATUREZA =====
     checkPageBreak(60)
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
@@ -302,31 +293,27 @@ export function useRelatorio() {
     doc.text('Distribuição por Tipo de Crime', margin, y)
     y += 8
 
-    const maxTipo = Math.max(...r.porTipo.map(t => t.total), 1)
-    r.porTipo.forEach(t => {
+    const maxNat = Math.max(...est.topNaturezas.map(t => t.qtd), 1)
+    est.topNaturezas.forEach(t => {
       checkPageBreak(10)
-      // Label
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(...cinzaEscuro)
       doc.text(t.label, margin, y + 4)
 
-      // Barra de fundo
       const barX = margin + 45
       const barMaxWidth = contentWidth - 80
       doc.setFillColor(230, 233, 240)
       doc.roundedRect(barX, y, barMaxWidth, 5, 1, 1, 'F')
 
-      // Barra preenchida
-      const barWidth = (t.total / maxTipo) * barMaxWidth
+      const barWidth = (t.qtd / maxNat) * barMaxWidth
       const cor = hexToRgb(t.cor)
       doc.setFillColor(cor[0], cor[1], cor[2])
       doc.roundedRect(barX, y, Math.max(barWidth, 2), 5, 1, 1, 'F')
 
-      // Valor
       doc.setFontSize(7)
       doc.setTextColor(...cinzaClaro)
-      doc.text(`${t.total} (${t.percentual}%)`, barX + barMaxWidth + 3, y + 4)
+      doc.text(`${t.qtd} (${t.pct}%)`, barX + barMaxWidth + 3, y + 4)
 
       y += 9
     })
@@ -345,11 +332,11 @@ export function useRelatorio() {
       startY: y,
       margin: { left: margin, right: margin },
       head: [['#', 'Bairro', 'Ocorrências', '%']],
-      body: r.porBairro.map((b, i) => [
+      body: est.topBairros.map((b, i) => [
         (i + 1).toString(),
         b.bairro,
-        b.total.toString(),
-        b.percentual + '%',
+        b.qtd.toString(),
+        `${est.total > 0 ? Math.round((b.qtd / est.total) * 100) : 0}%`,
       ]),
       theme: 'grid',
       headStyles: {
@@ -374,34 +361,8 @@ export function useRelatorio() {
       },
     })
 
-    y = (doc as any).lastAutoTable.finalY + 10
-
-    // ===== STATUS =====
-    checkPageBreak(25)
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...cinzaEscuro)
-    doc.text('Status das Ocorrências', margin, y)
-    y += 8
-
-    r.porStatus.forEach((s, i) => {
-      const x = margin + i * 55
-      // Dot
-      const cor = hexToRgb(s.cor)
-      doc.setFillColor(cor[0], cor[1], cor[2])
-      doc.circle(x + 3, y + 2, 2, 'F')
-      // Label
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(...cinzaClaro)
-      doc.text(s.label, x + 8, y + 3)
-      // Count
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...cinzaEscuro)
-      doc.text(s.total.toString(), x + 8 + doc.getTextWidth(s.label) + 3, y + 3)
-    })
-
-    y += 15
+    const docWithTable = doc as JsPdfWithAutoTable
+    y = (docWithTable.lastAutoTable?.finalY ?? y) + 10
 
     // ===== FOOTER =====
     const pageHeight = doc.internal.pageSize.getHeight()
@@ -413,35 +374,30 @@ export function useRelatorio() {
     doc.text(
       `Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
       margin,
-      pageHeight - 10
+      pageHeight - 10,
     )
     doc.text(
       `G-SEG Intelligence © ${new Date().getFullYear()}`,
       pageWidth - margin - doc.getTextWidth(`G-SEG Intelligence © ${new Date().getFullYear()}`),
-      pageHeight - 10
+      pageHeight - 10,
     )
 
-    // ===== DOWNLOAD =====
-    const hoje = new Date().toISOString().split('T')[0]
-    doc.save(`gseg-relatorio-${hoje}.pdf`)
-
+    // Download
+    doc.save(`gseg-relatorio-${new Date().toISOString().split('T')[0]}.pdf`)
     toast.success('PDF exportado com sucesso!')
   }
 
-  // Bairros disponíveis (pra select)
-  const bairrosDisponiveis = computed(() => {
-    const set = new Set(crimes.map(c => c.bairro))
-    return [...set].sort()
-  })
-
   return {
     config,
-    gerado,
-    crimesFiltrados,
-    resumo,
+    dados,
+    totalFiltrado,
+    estatisticas,
+    carregando,
+    relatorioGerado,
     bairrosDisponiveis,
+    buscarDados,
     gerarRelatorio,
-    voltarConfig,
+    voltar,
     exportarCsv,
     exportarPdf,
   }

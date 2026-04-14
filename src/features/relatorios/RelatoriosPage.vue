@@ -7,29 +7,32 @@
 
     <!-- Estado 1: Configuração -->
     <RelatorioConfig
-      v-if="!gerado"
+      v-if="!relatorioGerado"
       :config="config"
       :bairros-disponiveis="bairrosDisponiveis"
-      :total-filtrado="crimesFiltrados.length"
+      :total-filtrado="totalFiltrado"
+      :carregando="carregando"
+      @update:config="atualizarConfig"
       @gerar="gerarRelatorio"
     />
 
     <!-- Estado 2: Preview + Ações -->
     <template v-else>
       <RelatorioAcoes
-        @voltar="voltarConfig"
+        @voltar="voltar"
         @exportar-csv="exportarCsv"
         @exportar-pdf="exportarPdf"
       />
       <RelatorioPreview
         :config="config"
-        :resumo="resumo"
+        :estatisticas="estatisticas"
       />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { RelatorioConfig as RelatorioConfigType } from './types/relatorio'
 import RelatorioConfig from './components/RelatorioConfig.vue'
 import RelatorioPreview from './components/RelatorioPreview.vue'
 import RelatorioAcoes from './components/RelatorioAcoes.vue'
@@ -37,15 +40,20 @@ import { useRelatorio } from './composables/useRelatorio'
 
 const {
   config,
-  gerado,
-  crimesFiltrados,
-  resumo,
+  totalFiltrado,
+  estatisticas,
+  carregando,
+  relatorioGerado,
   bairrosDisponiveis,
   gerarRelatorio,
-  voltarConfig,
+  voltar,
   exportarCsv,
   exportarPdf,
 } = useRelatorio()
+
+function atualizarConfig(novoConfig: RelatorioConfigType) {
+  config.value = novoConfig
+}
 </script>
 
 <style scoped>

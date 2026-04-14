@@ -128,7 +128,7 @@ async function handleRegistro() {
 
     // Registro mockado — redireciona pro login
     router.push('/login')
-  } catch (e) {
+  } catch {
     erroGeral.value = 'Erro ao criar conta. Tente novamente.'
   } finally {
     loading.value = false
