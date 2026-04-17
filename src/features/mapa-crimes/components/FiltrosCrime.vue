@@ -11,12 +11,12 @@
       <label>Visualizacao</label>
       <div class="btn-group">
         <button
-          v-for="opt in visualizacaoOpts"
-          :key="opt.value"
+          v-for="opt in visualizacoes"
+          :key="opt.id"
           type="button"
-          :class="['btn-vis', { active: visualizacao === opt.value }]"
+          :class="['btn-vis', { active: visualizacao === opt.id }]"
           :disabled="carregando"
-          @click="$emit('update:visualizacao', opt.value)"
+          @click="$emit('update:visualizacao', opt.id)"
         >
           <i :class="opt.icon"></i>
           {{ opt.label }}
@@ -89,6 +89,28 @@
       </div>
     </div>
 
+    <div class="filtro-secao">
+      <h4 class="filtro-titulo">Precisao</h4>
+      <div class="precisao-toggles">
+        <button
+          v-for="p in opcoesPrecisao"
+          :key="p.valor"
+          type="button"
+          class="precisao-btn"
+          :class="{
+            active: precisaoAtiva(p.valor),
+            [p.classe]: true,
+          }"
+          :disabled="carregando"
+          @click="togglePrecisao(p.valor)"
+        >
+          <span class="precisao-dot" :style="{ background: p.cor }"></span>
+          <span class="precisao-label">{{ p.label }}</span>
+          <span class="precisao-count">{{ contagemPrecisao(p.valor) }}</span>
+        </button>
+      </div>
+    </div>
+
     <div class="stats-mini">
       <div class="stat">
         <span class="stat-num"><AnimatedNumber :valor="total" :duracao="500" /></span>
@@ -123,13 +145,22 @@ import { computed } from 'vue'
 import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 import EmptyState from '@/shared/components/EmptyState.vue'
 import LoadingSpinner from '@/shared/components/LoadingSpinner.vue'
-import { CRIME_CORES, CRIME_LABELS, type VisualizacaoMapa } from '../types/crime'
+import {
+  CRIME_CORES,
+  CRIME_LABELS,
+  PRECISAO_COORDENADA_CORES,
+  type CrimesGeoJson,
+  type PrecisaoCoordenada,
+  type VisualizacaoMapa,
+} from '../types/crime'
 
 interface Props {
   visualizacao: VisualizacaoMapa
   naturezaSelecionada: string
   bairroSelecionado: string
   bairros: string[]
+  geojsonOriginal: CrimesGeoJson
+  precisaoSelecionada: PrecisaoCoordenada[]
   total: number
   tiposCrime: Record<string, number>
   dataInicio: string
@@ -145,20 +176,22 @@ const emit = defineEmits<{
   'update:bairro': [value: string]
   'update:dataInicio': [value: string]
   'update:dataFim': [value: string]
+  'update:precisao': [value: PrecisaoCoordenada[]]
   limpar: []
 }>()
 
-const visualizacaoOpts: Array<{
-  value: VisualizacaoMapa
+const visualizacoes: Array<{
+  id: VisualizacaoMapa
   label: string
   icon: string
 }> = [
   {
-    value: 'ocorrencias',
+    id: 'ocorrencias',
     label: 'Ocorrencias',
     icon: 'mdi mdi-map-marker-multiple',
   },
-  { value: 'risco-bairros', label: 'Risco', icon: 'mdi mdi-shield-alert' },
+  { id: 'risco-bairros', label: 'Bairros', icon: 'mdi mdi-shield-alert' },
+  { id: 'risco-ruas', label: 'Ruas', icon: 'mdi mdi-road-variant' },
 ]
 
 const periodoOpts = [
@@ -166,6 +199,32 @@ const periodoOpts = [
   { value: '30d', label: '30d' },
   { value: '90d', label: '90d' },
   { value: 'all', label: 'Todos' },
+]
+
+const opcoesPrecisao: Array<{
+  valor: PrecisaoCoordenada
+  label: string
+  cor: string
+  classe: string
+}> = [
+  {
+    valor: 'ALTA',
+    label: 'Precisa',
+    cor: PRECISAO_COORDENADA_CORES.ALTA,
+    classe: 'btn-alta',
+  },
+  {
+    valor: 'MEDIA',
+    label: 'Aproximada',
+    cor: PRECISAO_COORDENADA_CORES.MEDIA,
+    classe: 'btn-media',
+  },
+  {
+    valor: 'BAIXA',
+    label: 'Imprecisa',
+    cor: PRECISAO_COORDENADA_CORES.BAIXA,
+    classe: 'btn-baixa',
+  },
 ]
 
 const tiposOrdenados = computed(() =>
@@ -197,6 +256,20 @@ const periodoAtivo = computed(() => {
   return null
 })
 
+const contagensPrecisao = computed<Record<PrecisaoCoordenada, number>>(() => {
+  const contagem: Record<PrecisaoCoordenada, number> = {
+    ALTA: 0,
+    MEDIA: 0,
+    BAIXA: 0,
+  }
+
+  props.geojsonOriginal.features.forEach((feature) => {
+    contagem[feature.properties.precisaoCoordenada] += 1
+  })
+
+  return contagem
+})
+
 function selecionarPeriodo(periodo: string) {
   const hoje = new Date()
   const dataFimFormatada = hoje.toISOString().split('T')[0] || ''
@@ -214,6 +287,33 @@ function selecionarPeriodo(periodo: string) {
 
   emit('update:dataInicio', dataInicioFormatada)
   emit('update:dataFim', dataFimFormatada)
+}
+
+function precisaoAtiva(valor: PrecisaoCoordenada): boolean {
+  return (
+    props.precisaoSelecionada.length === 0 ||
+    props.precisaoSelecionada.includes(valor)
+  )
+}
+
+function togglePrecisao(valor: PrecisaoCoordenada) {
+  const proximasPrecissoes =
+    props.precisaoSelecionada.length === 0
+      ? [valor]
+      : props.precisaoSelecionada.includes(valor)
+        ? props.precisaoSelecionada.filter((item) => item !== valor)
+        : [...props.precisaoSelecionada, valor]
+
+  const precissoesUnicas = Array.from(new Set(proximasPrecissoes))
+
+  emit(
+    'update:precisao',
+    precissoesUnicas.length === opcoesPrecisao.length ? [] : precissoesUnicas,
+  )
+}
+
+function contagemPrecisao(valor: PrecisaoCoordenada): number {
+  return contagensPrecisao.value[valor]
 }
 </script>
 
@@ -372,6 +472,86 @@ h3 {
   flex-direction: column;
   gap: 0.3rem;
   margin-top: 0.5rem;
+}
+
+.filtro-secao {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filtro-titulo {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.precisao-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.precisao-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.precisao-btn:hover:not(:disabled) {
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.precisao-btn.active {
+  color: #e2e8f0;
+  background: #1e293b;
+}
+
+.precisao-btn:not(.active) {
+  opacity: 0.4;
+}
+
+.precisao-btn.btn-alta.active {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.precisao-btn.btn-media.active {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.precisao-btn.btn-baixa.active {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.precisao-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.precisao-label {
+  flex: 1;
+}
+
+.precisao-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
 }
 
 .stats-mini {

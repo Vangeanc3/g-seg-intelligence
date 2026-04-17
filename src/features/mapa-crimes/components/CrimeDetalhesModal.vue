@@ -36,6 +36,16 @@
           <span class="detalhe-valor">{{ crime.properties.bairro }}</span>
         </div>
 
+        <div class="detalhe-grupo">
+          <span class="detalhe-label">Precisao da Localizacao</span>
+          <span
+            class="precisao-badge"
+            :class="precisaoClass(crime.properties.precisaoCoordenada)"
+          >
+            {{ labelPrecisaoCoordenada(crime.properties.precisaoCoordenada) }}
+          </span>
+        </div>
+
         <div v-if="crime.properties.meioEmpregado" class="detalhe-grupo">
           <span class="detalhe-label">Meio Empregado</span>
           <span class="detalhe-valor">{{ crime.properties.meioEmpregado }}</span>
@@ -59,6 +69,8 @@ import {
   formatarDataCrime,
   formatarVitima,
   labelNatureza,
+  labelPrecisaoCoordenada,
+  normalizarPrecisaoCoordenada,
   type CrimeFeature,
 } from '../types/crime'
 
@@ -97,6 +109,17 @@ const corTipo = computed(() =>
 const labelTipo = computed(() =>
   props.crime ? labelNatureza(props.crime.properties.natureza) : '',
 )
+
+function precisaoClass(precisao: string): string {
+  switch (normalizarPrecisaoCoordenada(precisao)) {
+    case 'ALTA':
+      return 'precisao-alta'
+    case 'MEDIA':
+      return 'precisao-media'
+    case 'BAIXA':
+      return 'precisao-baixa'
+  }
+}
 </script>
 
 <style scoped>
@@ -177,6 +200,30 @@ const labelTipo = computed(() =>
 .detalhe-valor {
   font-size: 0.875rem;
   color: #e2e8f0;
+}
+
+.precisao-badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.precisao-alta {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.precisao-media {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.precisao-baixa {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
 }
 
 .slide-enter-active,

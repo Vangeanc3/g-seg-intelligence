@@ -59,6 +59,14 @@
             <td class="td-categoria">{{ crime.properties.categoria }}</td>
             <td class="td-data">{{ formatarDataCrime(crime.properties.dataFato) }}</td>
             <td class="td-hora">{{ formatarHoraCrime(crime.properties.horaFato) }}</td>
+            <td class="td-precisao">
+              <span
+                class="precisao-tag"
+                :class="precisaoClass(crime.properties.precisaoCoordenada)"
+              >
+                {{ labelPrecisaoCoordenadaCurta(crime.properties.precisaoCoordenada) }}
+              </span>
+            </td>
             <td class="td-meio">{{ crime.properties.meioEmpregado || 'Nao informado' }}</td>
             <td class="td-acao">
               <button class="btn-ver" @click.stop="$emit('selecionar', crime)" title="Ver detalhes">
@@ -67,7 +75,7 @@
             </td>
           </tr>
           <tr v-if="paginados.length === 0">
-            <td colspan="7" class="td-vazio">
+            <td colspan="8" class="td-vazio">
               <div class="empty-inline">
                 <i class="mdi mdi-magnify-close"></i>
                 <span>Nenhuma ocorrencia encontrada</span>
@@ -131,6 +139,9 @@ import {
   formatarDataCrime,
   formatarHoraCrime,
   labelNatureza,
+  labelPrecisaoCoordenada,
+  labelPrecisaoCoordenadaCurta,
+  normalizarPrecisaoCoordenada,
   type CrimeFeature,
 } from '../types/crime'
 
@@ -140,6 +151,7 @@ type CampoOrdenacao =
   | 'categoria'
   | 'dataFato'
   | 'horaFato'
+  | 'precisaoCoordenada'
   | 'meioEmpregado'
 
 const props = defineProps<{
@@ -164,6 +176,7 @@ const colunas: Array<{ key: CampoOrdenacao; label: string }> = [
   { key: 'categoria', label: 'Categoria' },
   { key: 'dataFato', label: 'Data' },
   { key: 'horaFato', label: 'Hora' },
+  { key: 'precisaoCoordenada', label: 'Precisao' },
   { key: 'meioEmpregado', label: 'Meio Empregado' },
 ]
 
@@ -187,6 +200,15 @@ function getValorOrdenacao(crime: CrimeFeature, campo: CampoOrdenacao): string |
       return properties.categoria
     case 'meioEmpregado':
       return properties.meioEmpregado || ''
+    case 'precisaoCoordenada':
+      switch (normalizarPrecisaoCoordenada(properties.precisaoCoordenada)) {
+        case 'ALTA':
+          return 1
+        case 'MEDIA':
+          return 2
+        case 'BAIXA':
+          return 3
+      }
   }
 }
 
@@ -204,6 +226,12 @@ const filtrados = computed(() => {
         properties.categoria.toLowerCase().includes(termo) ||
         properties.natureza.toLowerCase().includes(termo) ||
         labelNatureza(properties.natureza).toLowerCase().includes(termo) ||
+        labelPrecisaoCoordenada(properties.precisaoCoordenada)
+          .toLowerCase()
+          .includes(termo) ||
+        labelPrecisaoCoordenadaCurta(properties.precisaoCoordenada)
+          .toLowerCase()
+          .includes(termo) ||
         (properties.meioEmpregado || '').toLowerCase().includes(termo)
       )
     })
@@ -263,6 +291,17 @@ function ordenarPor(campo: CampoOrdenacao) {
   }
 
   pagina.value = 1
+}
+
+function precisaoClass(precisao: string): string {
+  switch (normalizarPrecisaoCoordenada(precisao)) {
+    case 'ALTA':
+      return 'precisao-alta'
+    case 'MEDIA':
+      return 'precisao-media'
+    case 'BAIXA':
+      return 'precisao-baixa'
+  }
 }
 </script>
 
@@ -346,7 +385,7 @@ function ordenarPor(campo: CampoOrdenacao) {
 .crimes-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 860px;
 }
 
 .crimes-table thead {
@@ -432,10 +471,38 @@ function ordenarPor(campo: CampoOrdenacao) {
 }
 
 .td-data,
-.td-hora {
+.td-hora,
+.td-precisao {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+.td-data,
+.td-hora {
   color: #94a3b8;
+}
+
+.precisao-tag {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.precisao-alta {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+.precisao-media {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.precisao-baixa {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
 }
 
 .td-acao {

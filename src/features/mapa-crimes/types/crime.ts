@@ -22,6 +22,29 @@ export const CRIME_CORES: Record<string, string> = {
   ESTUPRO: '#be123c',
 }
 
+export type PrecisaoCoordenada = 'ALTA' | 'MEDIA' | 'BAIXA'
+
+export const PRECISAO_COORDENADA_LABELS: Record<PrecisaoCoordenada, string> = {
+  ALTA: 'Localizacao precisa',
+  MEDIA: 'Localizacao aproximada',
+  BAIXA: 'Localizacao imprecisa',
+}
+
+export const PRECISAO_COORDENADA_LABELS_CURTAS: Record<
+  PrecisaoCoordenada,
+  string
+> = {
+  ALTA: 'Precisa',
+  MEDIA: 'Aproximada',
+  BAIXA: 'Imprecisa',
+}
+
+export const PRECISAO_COORDENADA_CORES: Record<PrecisaoCoordenada, string> = {
+  ALTA: '#22c55e',
+  MEDIA: '#f59e0b',
+  BAIXA: '#ef4444',
+}
+
 export interface CrimeProperties {
   natureza: string
   categoria: string
@@ -31,6 +54,7 @@ export interface CrimeProperties {
   meioEmpregado: string | null
   sexoVitima: string | null
   idadeVitima: number | null
+  precisaoCoordenada: PrecisaoCoordenada
 }
 
 export type CrimeFeature = Feature<Point, CrimeProperties>
@@ -41,9 +65,13 @@ export interface FiltrosCrime {
   bairro: string
   dataInicio: string
   dataFim: string
+  precisao: PrecisaoCoordenada[]
 }
 
-export type VisualizacaoMapa = 'ocorrencias' | 'risco-bairros'
+export type VisualizacaoMapa =
+  | 'ocorrencias'
+  | 'risco-bairros'
+  | 'risco-ruas'
 
 export function criarGeoJsonVazio(): CrimesGeoJson {
   return {
@@ -58,6 +86,28 @@ export function labelNatureza(natureza: string): string {
 
 export function corNatureza(natureza: string): string {
   return CRIME_CORES[natureza] ?? '#6b7280'
+}
+
+export function normalizarPrecisaoCoordenada(
+  precisao: unknown,
+): PrecisaoCoordenada {
+  return precisao === 'ALTA' || precisao === 'MEDIA' || precisao === 'BAIXA'
+    ? precisao
+    : 'ALTA'
+}
+
+export function labelPrecisaoCoordenada(precisao: unknown): string {
+  return PRECISAO_COORDENADA_LABELS[normalizarPrecisaoCoordenada(precisao)]
+}
+
+export function labelPrecisaoCoordenadaCurta(precisao: unknown): string {
+  return PRECISAO_COORDENADA_LABELS_CURTAS[
+    normalizarPrecisaoCoordenada(precisao)
+  ]
+}
+
+export function corPrecisaoCoordenada(precisao: unknown): string {
+  return PRECISAO_COORDENADA_CORES[normalizarPrecisaoCoordenada(precisao)]
 }
 
 export function formatarDataCrime(data: string): string {

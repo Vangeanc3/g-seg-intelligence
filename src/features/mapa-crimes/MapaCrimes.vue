@@ -11,6 +11,8 @@
         :natureza-selecionada="filtros.natureza"
         :bairro-selecionado="filtros.bairro"
         :bairros="bairrosDisponiveis"
+        :geojson-original="geojson"
+        :precisao-selecionada="filtros.precisao"
         :total="totalCrimes"
         :tipos-crime="tiposCrime"
         :data-inicio="filtros.dataInicio"
@@ -21,6 +23,7 @@
         @update:bairro="filtros.bairro = $event"
         @update:data-inicio="filtros.dataInicio = $event"
         @update:data-fim="filtros.dataFim = $event"
+        @update:precisao="filtros.precisao = $event"
         @limpar="limparFiltros"
       />
     </div>
@@ -53,8 +56,9 @@
       <div v-if="viewMode === 'mapa'" class="mapa-crimes-content">
         <MapaInterativo
           ref="mapaRef"
-          :geojson="geojson"
+          :geojson="geojsonFiltrado"
           :bairros-poligonos="bairrosPoligonos"
+          :ruas-risco="ruasRisco"
           :visualizacao="visualizacao"
           @crime-click="crimeSelecionado = $event"
         />
@@ -101,7 +105,9 @@ const visualizacao = ref<VisualizacaoMapa>('ocorrencias')
 const {
   filtros,
   geojson,
+  geojsonFiltrado,
   bairrosPoligonos,
+  ruasRisco,
   bairrosDisponiveis,
   totalCrimes,
   tiposCrime,

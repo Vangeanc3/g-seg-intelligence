@@ -10,8 +10,11 @@ import mapboxgl from 'mapbox-gl'
 import { createMask } from '../utils/maskHelper'
 import {
   CRIME_CORES,
+  corPrecisaoCoordenada,
   formatarDataCrime,
   labelNatureza,
+  labelPrecisaoCoordenada,
+  normalizarPrecisaoCoordenada,
   type CrimeFeature,
   type CrimesGeoJson,
   type CrimeProperties,
@@ -22,6 +25,7 @@ import {
   RISCO_LABELS,
   type BairrosPoligonosGeoJson,
   type NivelRisco,
+  type RuasRiscoGeoJson,
 } from '../services/riscoService'
 
 const TERRA_FIRME_CENTER: [number, number] = [-48.4513, -1.456]
@@ -30,6 +34,7 @@ const DEFAULT_ZOOM = 15
 interface Props {
   geojson: CrimesGeoJson
   bairrosPoligonos: BairrosPoligonosGeoJson
+  ruasRisco: RuasRiscoGeoJson
   visualizacao: VisualizacaoMapa
 }
 
@@ -42,6 +47,7 @@ const mapContainer = ref<HTMLDivElement>()
 let map: mapboxgl.Map | null = null
 let searchMarker: mapboxgl.Marker | null = null
 let hoveredBairroId: number | null = null
+let hoveredRuaId: number | null = null
 
 function initMap() {
   if (!mapContainer.value) return
@@ -69,7 +75,9 @@ function initMap() {
     addSources()
     addLayers()
     setupEvents()
-    atualizarVisualizacao(props.visualizacao)
+
+    // Garante a visualizacao inicial assim que o mapa termina de montar
+    aplicarVisualizacao(props.visualizacao)
   })
 }
 
@@ -131,10 +139,17 @@ function addSources() {
     type: 'geojson',
     data: normalizarBairrosPoligonos(props.bairrosPoligonos),
   })
+
+  map.addSource('ruas-risco', {
+    type: 'geojson',
+    data: normalizarRuasRisco(props.ruasRisco),
+  })
 }
 
 function addLayers() {
   if (!map) return
+
+  const precisaoExpression = ['coalesce', ['get', 'precisaoCoordenada'], 'ALTA']
 
   map.addLayer({
     id: 'unclustered-point',
@@ -164,9 +179,35 @@ function addLayers() {
         CRIME_CORES.ESTUPRO,
         '#64748b',
       ],
-      'circle-stroke-width': 1,
-      'circle-stroke-color': '#ffffff',
-      'circle-opacity': 0.85,
+      'circle-stroke-width': [
+        'match',
+        precisaoExpression,
+        'BAIXA',
+        2,
+        'MEDIA',
+        1,
+        1,
+      ],
+      'circle-stroke-color': [
+        'match',
+        precisaoExpression,
+        'BAIXA',
+        '#f59e0b',
+        'MEDIA',
+        '#94a3b8',
+        '#334155',
+      ],
+      'circle-opacity': [
+        'match',
+        precisaoExpression,
+        'ALTA',
+        1,
+        'MEDIA',
+        0.7,
+        'BAIXA',
+        0.4,
+        0.8,
+      ],
     },
     layout: {
       visibility: 'none',
@@ -285,6 +326,78 @@ function addLayers() {
       'text-halo-width': 1.5,
     },
   })
+
+  map.addLayer({
+    id: 'ruas-risco-line',
+    type: 'line',
+    source: 'ruas-risco',
+    paint: {
+      'line-color': [
+        'match',
+        ['get', 'nivelRisco'],
+        'Seguro',
+        RISCO_CORES.Seguro,
+        'Baixo',
+        RISCO_CORES.Baixo,
+        'Medio',
+        RISCO_CORES.Medio,
+        'Alto',
+        RISCO_CORES.Alto,
+        'Critico',
+        RISCO_CORES.Critico,
+        '#64748b',
+      ],
+      'line-width': [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        10,
+        2,
+        14,
+        4,
+        16,
+        6,
+        18,
+        10,
+      ],
+      'line-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'hover'], false],
+        1,
+        0.85,
+      ],
+    },
+    layout: {
+      visibility: 'none',
+      'line-cap': 'round',
+      'line-join': 'round',
+    },
+  })
+
+  map.addLayer(
+    {
+      id: 'ruas-risco-halo',
+      type: 'line',
+      source: 'ruas-risco',
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          14,
+          0,
+        ],
+        'line-opacity': 0.3,
+        'line-blur': 2,
+      },
+      layout: {
+        visibility: 'none',
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+    },
+    'ruas-risco-line',
+  )
 }
 
 function normalizarTexto(value: unknown): string | null {
@@ -345,6 +458,16 @@ function normalizarBairrosPoligonos(
   }
 }
 
+function normalizarRuasRisco(data: RuasRiscoGeoJson): RuasRiscoGeoJson {
+  return {
+    ...data,
+    features: data.features.map((feature) => ({
+      ...feature,
+      id: feature.properties.id,
+    })),
+  }
+}
+
 function corDoRisco(nivel: string): string {
   const nivelNormalizado = normalizarNivelRisco(nivel)
   return nivelNormalizado ? RISCO_CORES[nivelNormalizado] : '#64748b'
@@ -358,6 +481,16 @@ function limparHoverBairro() {
     { hover: false },
   )
   hoveredBairroId = null
+}
+
+function limparHoverRua() {
+  if (!map || hoveredRuaId === null) return
+
+  map.setFeatureState(
+    { source: 'ruas-risco', id: hoveredRuaId },
+    { hover: false },
+  )
+  hoveredRuaId = null
 }
 
 function extrairCrime(feature: mapboxgl.GeoJSONFeature): CrimeFeature | null {
@@ -383,11 +516,17 @@ function extrairCrime(feature: mapboxgl.GeoJSONFeature): CrimeFeature | null {
       meioEmpregado: normalizarTexto(properties.meioEmpregado),
       sexoVitima: normalizarTexto(properties.sexoVitima),
       idadeVitima: normalizarNumero(properties.idadeVitima),
+      precisaoCoordenada: normalizarPrecisaoCoordenada(
+        properties.precisaoCoordenada,
+      ),
     },
   }
 }
 
 function criarPopupHtml(properties: CrimeProperties): string {
+  const precisao = normalizarPrecisaoCoordenada(properties.precisaoCoordenada)
+  const corPrecisao = corPrecisaoCoordenada(precisao)
+
   return `
     <div style="color: #e2e8f0; padding: 4px;">
       <strong style="font-size: 14px;">${labelNatureza(properties.natureza)}</strong>
@@ -396,6 +535,11 @@ function criarPopupHtml(properties: CrimeProperties): string {
       <p style="margin: 4px 0; font-size: 11px; color: #64748b;">
         ${formatarDataCrime(properties.dataFato)}${properties.horaFato ? ` - ${properties.horaFato}` : ''}
       </p>
+      <div style="margin-top: 8px;">
+        <span style="display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: ${corPrecisao}26; border: 1px solid ${corPrecisao}4d; color: ${corPrecisao};">
+          ${labelPrecisaoCoordenada(precisao)}
+        </span>
+      </div>
     </div>
   `
 }
@@ -414,9 +558,28 @@ function criarPopupHtmlBairro(properties: Record<string, unknown>): string {
     <div style="padding: 4px; color: #e2e8f0;">
       <strong style="font-size: 14px; display: block; margin-bottom: 4px;">${nomeDisplay}</strong>
       <div style="font-size: 12px; color: #94a3b8; display: flex; flex-direction: column; gap: 2px;">
-        <span>Nivel: <strong style="color: ${corDoRisco(labelNivel)};">${labelNivel}</strong></span>
+        <span>Nivel: <strong style="color: ${corDoRisco(nivelRisco || labelNivel)};">${labelNivel}</strong></span>
         <span>Total de crimes: <strong style="color: #e2e8f0;">${totalCrimes.toLocaleString('pt-BR')}</strong></span>
         ${populacao !== null ? `<span>Populacao: <strong style="color: #e2e8f0;">${populacao.toLocaleString('pt-BR')}</strong></span>` : ''}
+      </div>
+    </div>
+  `
+}
+
+function criarPopupHtmlRua(properties: Record<string, unknown>): string {
+  const nome = normalizarTexto(properties.nome) || '(sem nome)'
+  const tipo = normalizarTexto(properties.tipo) || '-'
+  const nivelRisco = normalizarNivelRisco(properties.nivelRisco)
+  const totalCrimes = normalizarNumero(properties.totalCrimes) ?? 0
+  const labelNivel = nivelRisco ? RISCO_LABELS[nivelRisco] : 'Indefinido'
+
+  return `
+    <div style="padding: 4px; color: #e2e8f0;">
+      <strong style="font-size: 14px; display: block; margin-bottom: 4px;">${nome}</strong>
+      <div style="font-size: 12px; color: #94a3b8; display: flex; flex-direction: column; gap: 2px;">
+        <span>Tipo: <strong style="color: #e2e8f0;">${tipo}</strong></span>
+        <span>Nivel: <strong style="color: ${corDoRisco(nivelRisco || labelNivel)};">${labelNivel}</strong></span>
+        <span>Total de crimes: <strong style="color: #e2e8f0;">${totalCrimes.toLocaleString('pt-BR')}</strong></span>
       </div>
     </div>
   `
@@ -512,22 +675,77 @@ function setupEvents() {
       .setHTML(criarPopupHtmlBairro(feature.properties as Record<string, unknown>))
       .addTo(map!)
   })
+
+  map.on('mousemove', 'ruas-risco-line', (event) => {
+    const feature = event.features?.[0]
+    if (!feature) return
+
+    const featureId = normalizarFeatureId(feature.id)
+    if (featureId === null) return
+
+    if (hoveredRuaId !== null && hoveredRuaId !== featureId) {
+      map!.setFeatureState(
+        { source: 'ruas-risco', id: hoveredRuaId },
+        { hover: false },
+      )
+    }
+
+    hoveredRuaId = featureId
+    map!.setFeatureState(
+      { source: 'ruas-risco', id: hoveredRuaId },
+      { hover: true },
+    )
+    map!.getCanvas().style.cursor = 'pointer'
+  })
+
+  map.on('mouseleave', 'ruas-risco-line', () => {
+    limparHoverRua()
+    map!.getCanvas().style.cursor = ''
+  })
+
+  map.on('click', 'ruas-risco-line', (event) => {
+    const feature = event.features?.[0]
+    if (!feature || !feature.properties) return
+
+    new mapboxgl.Popup({ closeButton: true, maxWidth: '280px' })
+      .setLngLat(event.lngLat)
+      .setHTML(criarPopupHtmlRua(feature.properties as Record<string, unknown>))
+      .addTo(map!)
+  })
 }
 
-function atualizarVisualizacao(modo: VisualizacaoMapa) {
-  if (!map || !map.isStyleLoaded()) return
+function aplicarVisualizacao(modo: VisualizacaoMapa) {
+  if (!map) return
+
+  if (!map.isStyleLoaded()) {
+    map.once('idle', () => {
+      aplicarVisualizacao(props.visualizacao)
+    })
+    return
+  }
 
   const ocorrenciasLayers = [
     'clusters',
     'cluster-count',
     'unclustered-point',
   ] as const
-  const riscoLayers = [
+  const bairrosLayers = [
     'bairros-fill',
     'bairros-line',
     'bairros-labels',
   ] as const
-  const todas = [...ocorrenciasLayers, ...riscoLayers]
+  const ruasLayers = ['ruas-risco-halo', 'ruas-risco-line'] as const
+  const todas = [...ocorrenciasLayers, ...bairrosLayers, ...ruasLayers]
+
+  if (modo !== 'risco-bairros') {
+    limparHoverBairro()
+  }
+
+  if (modo !== 'risco-ruas') {
+    limparHoverRua()
+  }
+
+  map.getCanvas().style.cursor = ''
 
   todas.forEach((layerId) => {
     if (map!.getLayer(layerId)) {
@@ -542,7 +760,13 @@ function atualizarVisualizacao(modo: VisualizacaoMapa) {
       }
     })
   } else if (modo === 'risco-bairros') {
-    riscoLayers.forEach((layerId) => {
+    bairrosLayers.forEach((layerId) => {
+      if (map!.getLayer(layerId)) {
+        map!.setLayoutProperty(layerId, 'visibility', 'visible')
+      }
+    })
+  } else if (modo === 'risco-ruas') {
+    ruasLayers.forEach((layerId) => {
       if (map!.getLayer(layerId)) {
         map!.setLayoutProperty(layerId, 'visibility', 'visible')
       }
@@ -602,9 +826,22 @@ watch(
 )
 
 watch(
+  () => props.ruasRisco,
+  (newData) => {
+    if (!map) return
+
+    limparHoverRua()
+
+    const source = map.getSource('ruas-risco') as mapboxgl.GeoJSONSource | undefined
+    source?.setData(normalizarRuasRisco(newData))
+  },
+  { deep: true },
+)
+
+watch(
   () => props.visualizacao,
   (modo) => {
-    atualizarVisualizacao(modo)
+    aplicarVisualizacao(modo)
   },
 )
 
@@ -612,6 +849,7 @@ onMounted(() => initMap())
 onUnmounted(() => {
   if (map) {
     limparHoverBairro()
+    limparHoverRua()
     map.remove()
     map = null
   }

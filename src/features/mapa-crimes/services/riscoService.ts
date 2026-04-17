@@ -1,6 +1,8 @@
 import { http } from '@/shared/services/http'
 import type {
   FeatureCollection,
+  LineString,
+  MultiLineString,
   MultiPolygon,
   Point,
   Polygon,
@@ -30,6 +32,19 @@ export type BairrosPoligonosGeoJson = FeatureCollection<
   BairroPoligonoProperties
 >
 
+export interface RuaRiscoProperties {
+  id: number
+  nome: string
+  tipo: string
+  totalCrimes: number
+  nivelRisco: NivelRisco
+}
+
+export type RuasRiscoGeoJson = FeatureCollection<
+  LineString | MultiLineString,
+  RuaRiscoProperties
+>
+
 export interface RiscoFiltros {
   dataInicio?: string
   dataFim?: string
@@ -49,6 +64,13 @@ export const riscoService = {
       '/mapa/bairros-poligonos',
       { params: filtros },
     )
+    return data
+  },
+
+  async getRuasRisco(filtros: RiscoFiltros = {}): Promise<RuasRiscoGeoJson> {
+    const { data } = await http.get<RuasRiscoGeoJson>('/mapa/ruas-risco', {
+      params: filtros,
+    })
     return data
   },
 }
