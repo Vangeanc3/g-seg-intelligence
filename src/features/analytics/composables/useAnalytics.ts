@@ -2,10 +2,12 @@ import { onUnmounted, ref, watch } from 'vue'
 import {
   analyticsService,
   type AnalyticsResponse,
+  type RuaRankingItem,
 } from '../services/analyticsService'
 
 export function useAnalytics() {
   const dados = ref<AnalyticsResponse | null>(null)
+  const topRuas = ref<RuaRankingItem[]>([])
   const carregando = ref(false)
   const erro = ref<string | null>(null)
 
@@ -22,14 +24,26 @@ export function useAnalytics() {
     erro.value = null
 
     try {
-      dados.value = await analyticsService.get({
+      const filtrosAtivos = {
         dataInicio: filtros.value.dataInicio || undefined,
         dataFim: filtros.value.dataFim || undefined,
         bairro: filtros.value.bairro || undefined,
-      })
+      }
+
+      const [analyticsData, ruasData] = await Promise.all([
+        analyticsService.get(filtrosAtivos),
+        analyticsService.getTopRuas({
+          ...filtrosAtivos,
+          limite: 15,
+        }),
+      ])
+
+      dados.value = analyticsData
+      topRuas.value = ruasData
     } catch {
       erro.value = 'Erro ao carregar analytics'
       dados.value = null
+      topRuas.value = []
     } finally {
       carregando.value = false
     }
@@ -55,6 +69,7 @@ export function useAnalytics() {
 
   return {
     dados,
+    topRuas,
     filtros,
     carregando,
     erro,

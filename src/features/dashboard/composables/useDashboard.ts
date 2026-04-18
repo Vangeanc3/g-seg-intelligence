@@ -121,6 +121,15 @@ export function useDashboard() {
     }))
   })
 
+  const precisao = computed(() => (
+    analytics.value?.precisao ?? {
+      alta: 0,
+      media: 0,
+      baixa: 0,
+      percentualPreciso: 0,
+    }
+  ))
+
   void carregar()
 
   return {
@@ -132,6 +141,7 @@ export function useDashboard() {
     categoriaTop,
     crimesByDate,
     crimesByType,
+    precisao,
     dateFilter,
     carregando,
     erro,

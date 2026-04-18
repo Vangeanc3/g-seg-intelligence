@@ -8,6 +8,16 @@ export interface ImportacaoResultado {
   erros: number
 }
 
+export interface ImportacaoItem {
+  id: number
+  arquivo: string
+  total: number
+  importados: number
+  duplicados: number
+  erros: number
+  importadoEm: string
+}
+
 export const importacaoService = {
   async upload(file: File, onProgress?: (pct: number) => void): Promise<ImportacaoResultado> {
     const formData = new FormData()
@@ -22,5 +32,14 @@ export const importacaoService = {
       },
     })
     return data
+  },
+
+  async listar(): Promise<ImportacaoItem[]> {
+    const { data } = await http.get<ImportacaoItem[]>('/importacao')
+    return data
+  },
+
+  async deletar(id: number): Promise<void> {
+    await http.delete(`/importacao/${id}`)
   },
 }

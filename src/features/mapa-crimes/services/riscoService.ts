@@ -38,6 +38,7 @@ export interface RuaRiscoProperties {
   tipo: string
   totalCrimes: number
   nivelRisco: NivelRisco
+  bairro?: string
 }
 
 export type RuasRiscoGeoJson = FeatureCollection<

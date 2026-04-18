@@ -11,6 +11,22 @@ export interface LabelTotal {
   total: number
 }
 
+export interface PrecisaoResumo {
+  alta: number
+  media: number
+  baixa: number
+  percentualPreciso: number
+}
+
+export interface RuaRankingItem {
+  ruaId: number
+  nome: string
+  tipo: string
+  totalCrimes: number
+  nivelRisco: string
+  naturezaPredominante: string | null
+}
+
 export interface AnalyticsResponse {
   totalCrimes: number
   porNatureza: LabelTotal[]
@@ -18,11 +34,22 @@ export interface AnalyticsResponse {
   porFaixaHoraria: LabelTotal[]
   porMes: LabelTotal[]
   topCategorias: LabelTotal[]
+  precisao: PrecisaoResumo
 }
 
 export const analyticsService = {
   async get(filtros: AnalyticsFiltros = {}): Promise<AnalyticsResponse> {
     const { data } = await http.get<AnalyticsResponse>('/analytics', {
+      params: filtros,
+    })
+
+    return data
+  },
+
+  async getTopRuas(
+    filtros: AnalyticsFiltros & { limite?: number } = {},
+  ): Promise<RuaRankingItem[]> {
+    const { data } = await http.get<RuaRankingItem[]>('/analytics/top-ruas', {
       params: filtros,
     })
 

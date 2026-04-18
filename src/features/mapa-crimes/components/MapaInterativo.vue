@@ -30,6 +30,15 @@ import {
 
 const TERRA_FIRME_CENTER: [number, number] = [-48.4513, -1.456]
 const DEFAULT_ZOOM = 15
+const TIPOS_RUA_LABELS: Record<string, string> = {
+  residential: 'Residencial',
+  primary: 'Principal',
+  secondary: 'Secundária',
+  tertiary: 'Terciária',
+  service: 'Serviço',
+  unclassified: 'Sem classificação',
+  living_street: 'Via local',
+}
 
 interface Props {
   geojson: CrimesGeoJson
@@ -568,18 +577,21 @@ function criarPopupHtmlBairro(properties: Record<string, unknown>): string {
 
 function criarPopupHtmlRua(properties: Record<string, unknown>): string {
   const nome = normalizarTexto(properties.nome) || '(sem nome)'
+  const bairro = normalizarTexto(properties.bairro)
   const tipo = normalizarTexto(properties.tipo) || '-'
   const nivelRisco = normalizarNivelRisco(properties.nivelRisco)
   const totalCrimes = normalizarNumero(properties.totalCrimes) ?? 0
   const labelNivel = nivelRisco ? RISCO_LABELS[nivelRisco] : 'Indefinido'
+  const labelTipo = TIPOS_RUA_LABELS[tipo] || tipo
 
   return `
-    <div style="padding: 4px; color: #e2e8f0;">
-      <strong style="font-size: 14px; display: block; margin-bottom: 4px;">${nome}</strong>
-      <div style="font-size: 12px; color: #94a3b8; display: flex; flex-direction: column; gap: 2px;">
-        <span>Tipo: <strong style="color: #e2e8f0;">${tipo}</strong></span>
-        <span>Nivel: <strong style="color: ${corDoRisco(nivelRisco || labelNivel)};">${labelNivel}</strong></span>
-        <span>Total de crimes: <strong style="color: #e2e8f0;">${totalCrimes.toLocaleString('pt-BR')}</strong></span>
+    <div style="padding: 10px; color: #0f172a; font-family: system-ui; max-width: 260px;">
+      <strong style="font-size: 14px; display: block; margin-bottom: 2px;">${nome}</strong>
+      ${bairro ? `<span style="font-size: 11px; color: #64748b;">${bairro}</span><br>` : ''}
+      <div style="font-size: 12px; color: #475569; margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">
+        <span>Tipo: <strong>${labelTipo}</strong></span>
+        <span>Nível: <strong style="color: ${corDoRisco(nivelRisco || labelNivel)};">${labelNivel}</strong></span>
+        <span>Total de crimes: <strong>${totalCrimes.toLocaleString('pt-BR')}</strong></span>
       </div>
     </div>
   `

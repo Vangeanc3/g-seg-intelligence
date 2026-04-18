@@ -59,6 +59,7 @@
         <SkeletonLoader tipo="grafico" />
       </div>
       <SkeletonLoader tipo="tabela" :linhas="8" />
+      <SkeletonLoader tipo="tabela" :linhas="8" />
     </template>
 
     <template v-else-if="temDados">
@@ -90,6 +91,10 @@
 
       <div class="graficos-row full tabela-row">
         <TabelaRanking :dados="analyticsDados.topCategorias" titulo="Top Categorias de Crimes" />
+      </div>
+
+      <div class="graficos-row full tabela-row">
+        <TabelaRuasRanking :ruas="topRuas" />
       </div>
     </template>
 
@@ -125,6 +130,7 @@ import GraficoTipos from './components/GraficoTipos.vue'
 import GraficoDiaSemana from './components/GraficoDiaSemana.vue'
 import GraficoHorario from './components/GraficoHorario.vue'
 import TabelaRanking from './components/TabelaRanking.vue'
+import TabelaRuasRanking from './components/TabelaRuasRanking.vue'
 import { useAnalytics } from './composables/useAnalytics'
 import type { AnalyticsResponse } from './services/analyticsService'
 
@@ -132,6 +138,7 @@ type PeriodoRapido = '7d' | '30d' | '90d' | 'ano'
 
 const {
   dados,
+  topRuas,
   filtros,
   carregando,
   erro,
@@ -147,6 +154,12 @@ const analyticsDados = computed<AnalyticsResponse>(() =>
     porFaixaHoraria: [],
     porMes: [],
     topCategorias: [],
+    precisao: {
+      alta: 0,
+      media: 0,
+      baixa: 0,
+      percentualPreciso: 0,
+    },
   },
 )
 const temDados = computed(() => (dados.value?.totalCrimes || 0) > 0)

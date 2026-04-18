@@ -83,6 +83,14 @@
       </div>
     </transition>
 
+    <div class="historico-section">
+      <ImportacaoHistorico
+        :importacoes="historico"
+        :carregando="carregandoHistorico"
+        @recarregar="carregarHistorico"
+      />
+    </div>
+
     <!-- Info box -->
     <div class="info-box">
       <i class="mdi mdi-information-outline"></i>
@@ -96,8 +104,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { importacaoService, type ImportacaoResultado } from './services/importacaoService'
+import { onMounted, ref } from 'vue'
+import ImportacaoHistorico from './components/ImportacaoHistorico.vue'
+import {
+  importacaoService,
+  type ImportacaoItem,
+  type ImportacaoResultado,
+} from './services/importacaoService'
 import { useToast } from '@/shared/composables/useToast'
 import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 
@@ -107,6 +120,20 @@ const arrastando = ref(false)
 const uploading = ref(false)
 const progresso = ref(0)
 const resultado = ref<ImportacaoResultado | null>(null)
+const historico = ref<ImportacaoItem[]>([])
+const carregandoHistorico = ref(false)
+
+async function carregarHistorico() {
+  carregandoHistorico.value = true
+
+  try {
+    historico.value = await importacaoService.listar()
+  } catch {
+    historico.value = []
+  } finally {
+    carregandoHistorico.value = false
+  }
+}
 
 function selecionarArquivo() {
   if (!uploading.value) inputFile.value?.click()
@@ -139,6 +166,7 @@ async function enviarArquivo(file: File) {
     })
     resultado.value = res
     toast.success(`${res.importados} registros importados com sucesso`)
+    await carregarHistorico()
   } catch (err: unknown) {
     const axiosErr = err as { response?: { data?: { message?: string } } }
     toast.error(axiosErr.response?.data?.message || 'Erro ao enviar arquivo')
@@ -152,6 +180,10 @@ function resetar() {
   progresso.value = 0
   if (inputFile.value) inputFile.value.value = ''
 }
+
+onMounted(() => {
+  void carregarHistorico()
+})
 </script>
 
 <style scoped>
@@ -333,6 +365,10 @@ function resetar() {
 .btn-secondary:hover {
   border-color: #94a3b8;
   color: #e2e8f0;
+}
+
+.historico-section {
+  margin-top: 2rem;
 }
 
 /* Info box */

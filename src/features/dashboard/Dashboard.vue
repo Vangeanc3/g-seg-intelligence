@@ -23,6 +23,10 @@
         <SkeletonLoader v-for="i in 4" :key="i" tipo="card" />
       </div>
 
+      <div class="stats-grid-sk quality-grid-sk">
+        <SkeletonLoader v-for="i in 4" :key="'precisao-' + i" tipo="card" />
+      </div>
+
       <div class="charts-grid">
         <SkeletonLoader tipo="grafico" />
         <SkeletonLoader tipo="grafico" />
@@ -48,6 +52,8 @@
         :categoria-top="categoriaTop"
       />
 
+      <PrecisaoCards :precisao="precisao" />
+
       <div class="charts-grid">
         <CrimeChart :data="crimesByDate" />
         <CrimeTypeChart :data="crimesByType" />
@@ -66,6 +72,7 @@ defineOptions({
 
 import DateFilter from './components/DateFilter.vue'
 import StatsCards from './components/StatsCards.vue'
+import PrecisaoCards from './components/PrecisaoCards.vue'
 import CrimeChart from './components/CrimeChart.vue'
 import CrimeTypeChart from './components/CrimeTypeChart.vue'
 import RecentCrimes from './components/RecentCrimes.vue'
@@ -86,6 +93,7 @@ const {
   categoriaTop,
   crimesByDate,
   crimesByType,
+  precisao,
   carregando,
   erro,
   updateDateFilter,
@@ -124,6 +132,10 @@ const {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1rem;
   margin-bottom: 0;
+}
+
+.quality-grid-sk {
+  margin-top: 2rem;
 }
 
 .dashboard-feedback,
