@@ -516,17 +516,18 @@ function extrairCrime(feature: mapboxgl.GeoJSONFeature): CrimeFeature | null {
       type: 'Point',
       coordinates: [Number(coordinates[0]), Number(coordinates[1])],
     },
-    properties: {
-      natureza: normalizarTexto(properties.natureza) || '',
-      categoria: normalizarTexto(properties.categoria) || '',
-      dataFato: normalizarTexto(properties.dataFato) || '',
-      horaFato: normalizarTexto(properties.horaFato),
-      bairro: normalizarTexto(properties.bairro) || '',
-      meioEmpregado: normalizarTexto(properties.meioEmpregado),
-      sexoVitima: normalizarTexto(properties.sexoVitima),
-      idadeVitima: normalizarNumero(properties.idadeVitima),
-      precisaoCoordenada: normalizarPrecisaoCoordenada(
-        properties.precisaoCoordenada,
+      properties: {
+        natureza: normalizarTexto(properties.natureza) || '',
+        categoria: normalizarTexto(properties.categoria) || '',
+        dataFato: normalizarTexto(properties.dataFato) || '',
+        horaFato: normalizarTexto(properties.horaFato),
+        bairro: normalizarTexto(properties.bairro) || '',
+        bairroSegup: normalizarTexto(properties.bairroSegup),
+        meioEmpregado: normalizarTexto(properties.meioEmpregado),
+        sexoVitima: normalizarTexto(properties.sexoVitima),
+        idadeVitima: normalizarNumero(properties.idadeVitima),
+        precisaoCoordenada: normalizarPrecisaoCoordenada(
+          properties.precisaoCoordenada,
       ),
     },
   }

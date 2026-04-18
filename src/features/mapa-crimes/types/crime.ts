@@ -51,6 +51,7 @@ export interface CrimeProperties {
   dataFato: string
   horaFato: string | null
   bairro: string
+  bairroSegup: string | null
   meioEmpregado: string | null
   sexoVitima: string | null
   idadeVitima: number | null
@@ -151,6 +152,7 @@ export function chaveCrime(crime: CrimeFeature): string {
     crime.properties.dataFato,
     crime.properties.horaFato || '',
     crime.properties.bairro,
+    crime.properties.bairroSegup || '',
     lng,
     lat,
   ].join('|')

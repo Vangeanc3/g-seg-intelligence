@@ -36,6 +36,14 @@
           <span class="detalhe-valor">{{ crime.properties.bairro }}</span>
         </div>
 
+        <div v-if="mostrarBairroSegup" class="detalhe-grupo">
+          <span class="detalhe-label">Bairro (SEGUP)</span>
+          <span class="detalhe-valor divergente">
+            <i class="mdi mdi-alert-circle"></i>
+            {{ crime.properties.bairroSegup }}
+          </span>
+        </div>
+
         <div class="detalhe-grupo">
           <span class="detalhe-label">Precisao da Localizacao</span>
           <span
@@ -109,6 +117,17 @@ const corTipo = computed(() =>
 const labelTipo = computed(() =>
   props.crime ? labelNatureza(props.crime.properties.natureza) : '',
 )
+
+const mostrarBairroSegup = computed(() => {
+  if (!props.crime?.properties.bairroSegup) {
+    return false
+  }
+
+  return (
+    props.crime.properties.bairroSegup.toUpperCase() !==
+    props.crime.properties.bairro.toUpperCase()
+  )
+})
 
 function precisaoClass(precisao: string): string {
   switch (normalizarPrecisaoCoordenada(precisao)) {
@@ -200,6 +219,18 @@ function precisaoClass(precisao: string): string {
 .detalhe-valor {
   font-size: 0.875rem;
   color: #e2e8f0;
+}
+
+.divergente {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #f59e0b;
+  font-size: 0.8125rem;
+}
+
+.divergente i {
+  font-size: 0.875rem;
 }
 
 .precisao-badge {
