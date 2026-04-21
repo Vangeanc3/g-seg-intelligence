@@ -64,6 +64,14 @@
         />
         <BuscaEndereco @selecionar="onBuscaSelecionar" />
         <LegendaMapa :visualizacao="visualizacao" />
+        <button
+          class="btn-exportar-mapa"
+          type="button"
+          title="Exportar mapa como imagem"
+          @click="exportarMapa"
+        >
+          <i class="mdi mdi-camera"></i>
+        </button>
 
         <div v-if="carregando" class="loading-overlay">
           <LoadingSpinner size="sm" text="Carregando crimes..." />
@@ -88,6 +96,7 @@ import { ref, watch } from 'vue'
 import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 import ErrorMessage from '@/shared/components/ErrorMessage.vue'
 import LoadingSpinner from '@/shared/components/LoadingSpinner.vue'
+import { useToast } from '@/shared/composables/useToast'
 import MapaInterativo from './components/MapaInterativo.vue'
 import FiltrosCrime from './components/FiltrosCrime.vue'
 import LegendaMapa from './components/LegendaMapa.vue'
@@ -101,6 +110,7 @@ import {
   type VisualizacaoMapa,
 } from './types/crime'
 
+const toast = useToast()
 const visualizacao = ref<VisualizacaoMapa>('ocorrencias')
 const {
   filtros,
@@ -142,6 +152,17 @@ function onBuscaSelecionar(coords: {
   zoom: number
 }) {
   mapaRef.value?.irParaCoordenada(coords)
+}
+
+function exportarMapa() {
+  const mapaComponent = mapaRef.value
+
+  if (!mapaComponent) {
+    toast.error('Mapa não disponível')
+    return
+  }
+
+  mapaComponent.exportarImagem()
 }
 </script>
 
@@ -257,6 +278,32 @@ function onBuscaSelecionar(coords: {
   transform: translate(-50%, -50%);
 }
 
+.btn-exportar-mapa {
+  position: absolute;
+  bottom: 2rem;
+  left: 1rem;
+  z-index: 15;
+  width: 40px;
+  height: 40px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 1.125rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn-exportar-mapa:hover {
+  color: #e2e8f0;
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
 @media (max-width: 768px) {
   .mapa-crimes {
     flex-direction: column;
@@ -313,6 +360,10 @@ function onBuscaSelecionar(coords: {
   .status-banner {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .btn-exportar-mapa {
+    bottom: 4rem;
   }
 }
 </style>

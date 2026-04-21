@@ -7,6 +7,7 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import { dashboardRoutes } from '@/features/dashboard/routes'
 import { mapaCrimesRoutes } from '@/features/mapa-crimes/routes'
 import { analyticsRoutes } from '@/features/analytics/routes'
+import { comparativoRoutes } from '@/features/comparativo/routes'
 import { relatoriosRoutes } from '@/features/relatorios/routes'
 import { authRoutes } from '@/features/auth/routes'
 
@@ -34,6 +35,7 @@ const router = createRouter({
         ...dashboardRoutes,
         ...mapaCrimesRoutes,
         ...analyticsRoutes,
+        ...comparativoRoutes,
         ...relatoriosRoutes,
         {
           path: 'importacao',

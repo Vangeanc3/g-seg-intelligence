@@ -7,6 +7,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import mapboxgl from 'mapbox-gl'
+import { useToast } from '@/shared/composables/useToast'
 import { createMask } from '../utils/maskHelper'
 import {
   CRIME_CORES,
@@ -51,6 +52,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   crimeClick: [crime: CrimeFeature]
 }>()
+const toast = useToast()
 
 const mapContainer = ref<HTMLDivElement>()
 let map: mapboxgl.Map | null = null
@@ -74,6 +76,7 @@ function initMap() {
       [-48.65, -1.55],
       [-48.3, -1.1],
     ],
+    preserveDrawingBuffer: true,
   })
 
   map.addControl(new mapboxgl.NavigationControl(), 'top-right')
@@ -810,7 +813,61 @@ function irParaCoordenada(coords: { lng: number; lat: number; zoom: number }) {
   }, 10000)
 }
 
-defineExpose({ irParaCoordenada })
+function baixarImagemMapa(url: string) {
+  const link = document.createElement('a')
+  link.download = `gseg-mapa-${new Date().toISOString().split('T')[0]}.png`
+  link.href = url
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function exportarMapaAposRender() {
+  if (!map) {
+    toast.error('Mapa não disponível')
+    return
+  }
+
+  map.once('render', () => {
+    const canvas = map?.getCanvas()
+    if (!canvas) {
+      toast.error('Mapa não disponível')
+      return
+    }
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        toast.error('Erro ao exportar mapa')
+        return
+      }
+
+      const url = URL.createObjectURL(blob)
+      baixarImagemMapa(url)
+      setTimeout(() => URL.revokeObjectURL(url), 0)
+      toast.success('Mapa exportado como imagem')
+    }, 'image/png')
+  })
+  map.triggerRepaint()
+}
+
+function exportarImagem() {
+  if (!map) {
+    toast.error('Mapa não disponível')
+    return
+  }
+
+  try {
+    const canvas = map.getCanvas()
+    const dataUrl = canvas.toDataURL('image/png')
+
+    baixarImagemMapa(dataUrl)
+    toast.success('Mapa exportado como imagem')
+  } catch {
+    exportarMapaAposRender()
+  }
+}
+
+defineExpose({ irParaCoordenada, exportarImagem })
 
 watch(
   () => props.geojson,

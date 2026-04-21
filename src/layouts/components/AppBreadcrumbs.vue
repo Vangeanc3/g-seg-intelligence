@@ -29,6 +29,7 @@ const labels: Record<string, string> = {
   '/app/dashboard': 'Dashboard',
   '/app/mapa': 'Mapa de Crimes',
   '/app/analytics': 'Analytics',
+  '/app/comparativo': 'Comparativo',
   '/app/relatorios': 'Relatórios',
   '/app/perfil': 'Meu Perfil',
 }
