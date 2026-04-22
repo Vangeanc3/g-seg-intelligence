@@ -6,13 +6,23 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    vue(),
-    vueDevTools(),
-  ],
+  plugins: [vue(), vueDevTools()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          mapbox: ['mapbox-gl'],
+          chartjs: ['chart.js'],
+          pdf: ['jspdf', 'jspdf-autotable'],
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          http: ['axios'],
+        },
+      },
     },
   },
 })

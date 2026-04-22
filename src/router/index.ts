@@ -1,8 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import MainLayout from '@/layouts/MainLayout.vue'
-import AuthLayout from '@/layouts/AuthLayout.vue'
-
 // Rotas por feature
 import { dashboardRoutes } from '@/features/dashboard/routes'
 import { mapaCrimesRoutes } from '@/features/mapa-crimes/routes'
@@ -25,7 +22,7 @@ const router = createRouter({
     // (MainLayout - rotas autenticadas)
     {
       path: '/app',
-      component: MainLayout,
+      component: () => import('@/layouts/MainLayout.vue'),
       meta: { requiresAuth: true },
       children: [
         {
@@ -51,10 +48,8 @@ const router = createRouter({
     // (AuthLayout)
     {
       path: '/auth',
-      component: AuthLayout,
-      children: [
-        ...authRoutes,
-      ],
+      component: () => import('@/layouts/AuthLayout.vue'),
+      children: [...authRoutes],
     },
 
     // 404 - Página não encontrada
