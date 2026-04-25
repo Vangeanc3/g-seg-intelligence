@@ -1,11 +1,13 @@
 import axios, { AxiosError } from 'axios'
 
 const TOKEN_STORAGE_KEY = 'g-seg-token'
+const USER_STORAGE_KEY = 'g-seg-user'
 const PROFILE_STORAGE_KEY = 'g-seg-perfil'
 const LEGACY_STORAGE_KEYS = ['auth_token', 'user_data', 'refresh_token'] as const
 
 function clearAuthStorage() {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
+  localStorage.removeItem(USER_STORAGE_KEY)
   localStorage.removeItem(PROFILE_STORAGE_KEY)
 
   for (const key of LEGACY_STORAGE_KEYS) {

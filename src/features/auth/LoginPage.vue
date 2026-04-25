@@ -53,16 +53,17 @@
 import type { AxiosError } from 'axios'
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/features/auth/stores/authStore'
 import BaseButton from '@/shared/components/BaseButton.vue'
 import BaseCard from '@/shared/components/BaseCard.vue'
 import BaseInput from '@/shared/components/BaseInput.vue'
 import ErrorMessage from '@/shared/components/ErrorMessage.vue'
 import { useToast } from '@/shared/composables/useToast'
 import { isValidEmail } from '@/shared/utils/validators'
-import { authService } from './services/authService'
 
 const router = useRouter()
 const toast = useToast()
+const authStore = useAuthStore()
 
 const email = ref('')
 const senha = ref('')
@@ -106,12 +107,11 @@ async function handleLogin() {
   erroGeral.value = ''
 
   try {
-    const { token } = await authService.login({
+    await authStore.login({
       email: email.value,
       password: senha.value,
     })
 
-    localStorage.setItem('g-seg-token', token)
     toast.success('Login realizado com sucesso!')
     router.push('/app/dashboard')
   } catch (e) {

@@ -54,6 +54,7 @@
         </div>
 
         <button
+          v-if="props.showDelete"
           class="btn-deletar"
           title="Remover importação e crimes associados"
           @click="confirmarDeletar(item)"
@@ -66,7 +67,11 @@
     <EmptyState
       v-else
       titulo="Nenhuma importação realizada"
-      descricao="Faça upload de uma planilha acima para começar."
+      :descricao="
+        props.showDelete
+          ? 'Faça upload de uma planilha acima para começar.'
+          : 'O histórico de importações aparecerá aqui quando houver registros.'
+      "
       icone="mdi mdi-cloud-upload-outline"
       cor="#3b82f6"
     />
@@ -74,7 +79,7 @@
     <Teleport to="body">
       <transition name="modal-fade">
         <div
-          v-if="deletando"
+          v-if="props.showDelete && deletando"
           class="modal-overlay"
           @click.self="fecharModal"
         >
@@ -121,10 +126,13 @@ import {
   type ImportacaoItem,
 } from '../services/importacaoService'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   importacoes: ImportacaoItem[]
   carregando: boolean
-}>()
+  showDelete?: boolean
+}>(), {
+  showDelete: false,
+})
 
 const emit = defineEmits<{
   recarregar: []
@@ -145,6 +153,7 @@ function formatarData(data: string): string {
 }
 
 function confirmarDeletar(item: ImportacaoItem) {
+  if (!props.showDelete) return
   deletando.value = item
 }
 
@@ -154,7 +163,7 @@ function fecharModal() {
 }
 
 async function executarDeletar() {
-  if (!deletando.value) return
+  if (!props.showDelete || !deletando.value) return
 
   processando.value = true
 

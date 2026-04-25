@@ -2,11 +2,18 @@
   <div class="importacao-page">
     <div class="page-header">
       <h1>Importação de Dados</h1>
-      <p>Faça upload de planilhas da SEGUP para importar ocorrências ao sistema.</p>
+      <p>
+        {{
+          isAdmin
+            ? 'Faça upload de planilhas da SEGUP para importar ocorrências ao sistema.'
+            : 'Consulte o histórico das importações realizadas no sistema.'
+        }}
+      </p>
     </div>
 
     <!-- Zona de upload -->
     <div
+      v-if="isAdmin"
       class="upload-zone"
       :class="{ dragover: arrastando, uploading }"
       @dragover.prevent="arrastando = true"
@@ -87,6 +94,7 @@
       <ImportacaoHistorico
         :importacoes="historico"
         :carregando="carregandoHistorico"
+        :show-delete="isAdmin"
         @recarregar="carregarHistorico"
       />
     </div>
@@ -104,7 +112,10 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { onMounted, ref } from 'vue'
+import { useAuthStore } from '@/features/auth/stores/authStore'
+import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 import ImportacaoHistorico from './components/ImportacaoHistorico.vue'
 import {
   importacaoService,
@@ -112,9 +123,10 @@ import {
   type ImportacaoResultado,
 } from './services/importacaoService'
 import { useToast } from '@/shared/composables/useToast'
-import AnimatedNumber from '@/shared/components/AnimatedNumber.vue'
 
 const toast = useToast()
+const authStore = useAuthStore()
+const { isAdmin } = storeToRefs(authStore)
 const inputFile = ref<HTMLInputElement | null>(null)
 const arrastando = ref(false)
 const uploading = ref(false)
@@ -136,21 +148,29 @@ async function carregarHistorico() {
 }
 
 function selecionarArquivo() {
-  if (!uploading.value) inputFile.value?.click()
+  if (!isAdmin.value || uploading.value) return
+  inputFile.value?.click()
 }
 
 function onFileChange(e: Event) {
+  if (!isAdmin.value) return
   const file = (e.target as HTMLInputElement).files?.[0]
   if (file) enviarArquivo(file)
 }
 
 function onDrop(e: DragEvent) {
   arrastando.value = false
+  if (!isAdmin.value) return
   const file = e.dataTransfer?.files?.[0]
   if (file) enviarArquivo(file)
 }
 
 async function enviarArquivo(file: File) {
+  if (!isAdmin.value) {
+    toast.error('Apenas administradores podem importar arquivos')
+    return
+  }
+
   if (!/\.(xlsx|xls)$/i.test(file.name)) {
     toast.error('Formato inválido. Envie um arquivo .xlsx ou .xls')
     return

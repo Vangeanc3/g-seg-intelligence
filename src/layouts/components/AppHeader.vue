@@ -71,9 +71,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { authService } from '@/features/auth/services/authService'
+import { useAuthStore } from '@/features/auth/stores/authStore'
 import { useToast } from '@/shared/composables/useToast'
 import LogoutModal from '@/shared/components/LogoutModal.vue'
 import NotificacoesDropdown from '@/shared/components/NotificacoesDropdown.vue'
@@ -89,11 +90,15 @@ const showUserMenu = ref(false)
 const mostrarLogout = ref(false)
 
 const toast = useToast()
+const authStore = useAuthStore()
+const { user } = storeToRefs(authStore)
 
-// Usuário (depois virá do authService)
-const userName = 'João Silva'
-const userEmail = 'joao@gseg.com.br'
-const userAvatar = 'https://ui-avatars.com/api/?name=Joao+Silva&background=3b82f6&color=fff'
+const userName = computed(() => user.value?.nome || 'Usuário')
+const userEmail = computed(() => user.value?.email || 'usuario@gseg.com.br')
+const userAvatar = computed(() => {
+  const nome = encodeURIComponent(userName.value)
+  return `https://ui-avatars.com/api/?name=${nome}&background=3b82f6&color=fff`
+})
 
 const currentPageTitle = computed(() => {
   return (route.meta.title as string) || 'Dashboard'
@@ -104,7 +109,7 @@ function toggleUserMenu() {
 }
 
 function confirmarLogout() {
-  authService.logout()
+  authStore.logout()
   mostrarLogout.value = false
   showUserMenu.value = false
   toast.info('Você saiu da plataforma.')
